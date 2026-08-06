@@ -89,18 +89,18 @@ services:
         condition: service_healthy
     entrypoint: ["npx", "tsx", "./node_modules/node-pg-migrate/bin/node-pg-migrate.js", "up", "--migrations-dir", "src/DB/migrations"]
 
-  # ── Node.js app (hot-reload) ──────────────────────────────────────────────
+  # ── Node.js app (production build) ───────────────────────────────────────
   app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
       args:
         PORT: ${PORT}
     container_name: ht-logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV}
-      PORT: ${PORT}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-8080}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
       LOADGEN_API_KEY: ${LOADGEN_API_KEY:-}
@@ -109,11 +109,8 @@ services:
       PG_POOL_MAX: ${PG_POOL_MAX:-8}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
       PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-5000}
-    volumes:
-      - .:/usr/src/app
-      - app_node_modules:/usr/src/app/node_modules
     ports:
-      - "${PORT}:${PORT}"
+      - "8080:8080"
     networks:
       - logger-net
     depends_on:
