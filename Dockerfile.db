@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Dockerfile.db — PostgreSQL 16 + pg_partman (built from source)
+# ---------------------------------------------------------------------------
+FROM postgres:16-alpine
+
+ARG PARTMAN_VERSION=v5.2.4
+
+# postgres:16-alpine is compiled with --with-llvm which expects clang-XX.
+# Passing with_llvm=no skips LLVM bitcode compilation so clang is not needed.
+RUN apk add --no-cache --virtual .build-deps \
+        git \
+        make \
+        gcc \
+        musl-dev \
+    && git clone --depth 1 --branch ${PARTMAN_VERSION} \
+           https://github.com/pgpartman/pg_partman.git /tmp/pg_partman \
+    && cd /tmp/pg_partman \
+    && make with_llvm=no \
+    && make install with_llvm=no \
+    && rm -rf /tmp/pg_partman \
+    && apk del .build-deps
+
+# shared_preload_libraries and bgw config are supplied at runtime
+# via the compose command: directive so dev and prod can differ without rebuilding.

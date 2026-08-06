@@ -1,0 +1,17 @@
+# ---------------------------------------------------------------------------
+# Dockerfile.dev — Node.js/TypeScript ingestion app (development)
+# ---------------------------------------------------------------------------
+FROM node:22-alpine
+
+WORKDIR /usr/src/app
+
+# Install ALL dependencies (devDeps needed for tsx)
+COPY package*.json ./
+RUN npm ci
+
+# Source code is injected at runtime via the compose bind mount.
+# tsx watch restarts the process on every .ts file change.
+ARG PORT=3000
+EXPOSE ${PORT}
+
+CMD ["npx", "tsx", "watch", "src/server.ts"]

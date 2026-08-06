@@ -1,0 +1,25 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "Millis",
+    "millis",
+    "idleTimeoutMillis",
+    "connectionTimeoutMillis",
+    "pgmigrations",
+    "pgadmin",
+    "dotenv",
+    "fastify",
+    "nodenext",
+    "outdir",
+    "rootdir",
+    "tsconfig",
+    "esmoduleinterop",
+    "migrationfilenameformat",
+    "cpus",
+    "pgdata",
+    "gin_trgm_ops",
+    "idx_logs_message_trgm"
+  ],
+  "ignorePaths": ["node_modules", "dist", "package-lock.json"]
+}

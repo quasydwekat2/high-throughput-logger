@@ -1,30 +1,128 @@
-version: '3.8'
+name: high-throughput-logger
 
-services:
-  db:
-    image: postgres:16-alpine
-    container_name: log_service_db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: logs_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: log_service_pgadmin
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - db
+networks:
+  logger-net:
+    driver: bridge
 
 volumes:
-  pgdata:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  app_node_modules:
+    driver: local
+
+services:
+  # ── PostgreSQL 16 + pg_partman ────────────────────────────────────────────
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    container_name: ht-logger-postgres
+    restart: unless-stopped
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_partman_bgw
+        -c pg_partman_bgw.dbname=${POSTGRES_DB}
+        -c pg_partman_bgw.interval=3600
+        -c pg_partman_bgw.role=${POSTGRES_USER}
+        -c max_connections=200
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    networks:
+      - logger-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  # ── pgAdmin 4 ─────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ht-logger-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "${PGADMIN_PORT}:80"
+    networks:
+      - logger-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── DB migrations (runs once, applies src/DB/migrations, then exits) ───────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ht-logger-migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - .:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
+    networks:
+      - logger-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["npx", "tsx", "./node_modules/node-pg-migrate/bin/node-pg-migrate.js", "up", "--migrations-dir", "src/DB/migrations"]
+
+  # ── Node.js app (hot-reload) ──────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        PORT: ${PORT}
+    container_name: ht-logger-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+      LOADGEN_API_KEY: ${LOADGEN_API_KEY:-}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      RETENTION_CRON: ${RETENTION_CRON:-0 * * * *}
+      PG_POOL_MAX: ${PG_POOL_MAX:-8}
+      PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
+      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-5000}
+    volumes:
+      - .:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
+    ports:
+      - "${PORT}:${PORT}"
+    networks:
+      - logger-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256m
