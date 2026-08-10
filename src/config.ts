@@ -20,10 +20,8 @@ export const config = {
   // authEnabled: process.env.AUTH_ENABLED === 'true',
   // loadgenApiKey: process.env.LOADGEN_API_KEY ?? '',
 
-  // // Retention
-  // retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),
-  // retentionCron: process.env.RETENTION_CRON ?? '0 * * * *',
-  // we dont need it bcz we are not using retention cron-job
+  // Retention — applied to pg_partman at startup (no app cron; BGW drops partitions)
+  retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),
 
   // Ingestion buffer (set INGEST_BUFFER_ENABLED=false for sync writes)
   //

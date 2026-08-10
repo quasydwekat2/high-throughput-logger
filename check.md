@@ -20,7 +20,7 @@ Obligatory requirements only. Status: `[x]` done · `[~]` partial · `[ ]` not d
 
 - [x] **Ingestion** — API accepts individual or batched structured logs, validates, stores efficiently
 - [x] **Querying** — filter by service, level, time, attributes, message; aggregate into time buckets / group dimensions
-- [~] **Retention** — expired data deleted; Partman `30 days` works, but retention is not configurable via env (spec asks configurable)
+- [x] **Retention** — Partman drops expired partitions; `RETENTION_DAYS` (default 30) from env/config applied to `partman.part_config` at app startup (BGW, no app cron)
 
 ### Log entry fields
 - [x] `timestamp`
@@ -143,7 +143,7 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 |------|--------|--------|
 | Architecture | `[~]` | Schema, attributes JSONB, data flow, structure in place; document in README |
 | Performance | `[x]` | Own load test PASSES all 7 targets (see §6); still need portal submission + README write-up |
-| Retention | `[~]` | Partman drop partitions (good); configurability incomplete |
+| Retention | `[x]` | Partman DROP partitions; `RETENTION_DAYS` synced at startup |
 | Reliability | `[x]` | Validation, errors, edge cases largely covered |
 | Code quality | `[x]` | Typed TS, clear layers |
 | Security | `[x]` | Parameterized queries |
@@ -188,10 +188,10 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 
 1. Fix `attr.<key>` string-equality if loadgen uses numeric/boolean attrs.
 2. Fix ingest-buffer durability: handler returns 200 right after `enqueue()`, before the batch is actually flushed to Postgres — violates "never respond 200 to a batch not durably accepted" if the process crashes before flush.
-3. Make retention configurable (or document Partman value + how to change it if accepted as design).
-4. Write README (all §8 sections), including the measured load-test numbers from §6.
-5. Add Vitest smoke/contract tests + GitHub Actions CI.
-6. ~~Run load tests; tune; document numbers~~ — **done**, see §6.
+3. Write README (all §8 sections), including retention strategy (`RETENTION_DAYS` + Partman) and measured load-test numbers from §6.
+4. Add Vitest smoke/contract tests + GitHub Actions CI.
+5. ~~Run load tests; tune; document numbers~~ — **done**, see §6.
+6. ~~Make retention configurable~~ — **done** (`RETENTION_DAYS` → Partman at startup).
 7. Submit to https://loadgen.foothilltech.net/ and iterate.
 8. Record ~5 min demo video.
 9. Submit final project.
@@ -203,7 +203,7 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 | Area | Rough status |
 |------|----------------|
 | Core API | ~95% (attr string match + ingest-buffer durability still open) |
-| Retention | Done via Partman; configurability partial |
+| Retention | **Done** (Partman + `RETENTION_DAYS`) |
 | Docker / infra | **Done** |
 | Performance proof | **Done** (own load test, all 7 targets PASS); portal submission still pending |
 | Tests / CI / README | ~5% |
