@@ -1,5 +1,9 @@
 import { pool } from '../../DB/client.js';
-import type { AggregateParams, AggregationBucket, BucketSize } from '../../types/log.types.js';
+import type {
+  ParsedAggregateParams,
+  AggregateBucket,
+  BucketSize,
+} from '../../types/log.types.js';
 
 // Maps bucket size to the SQL expression that truncates a timestamp to that bucket
 function bucketExpr(size: BucketSize): string {
@@ -16,8 +20,13 @@ function bucketExpr(size: BucketSize): string {
   }
 }
 
-export async function aggregateLogs(params: AggregateParams): Promise<AggregationBucket[]> {
-  const conditions: string[] = ['timestamp >= $1::timestamptz', 'timestamp < $2::timestamptz'];
+export async function aggregateLogs(
+  params: ParsedAggregateParams,
+): Promise<AggregateBucket[]> {
+  const conditions: string[] = [
+    'timestamp >= $1::timestamptz',
+    'timestamp < $2::timestamptz',
+  ];
   const values: unknown[] = [params.since, params.until];
   let n = 3;
 
@@ -69,10 +78,11 @@ export async function aggregateLogs(params: AggregateParams): Promise<Aggregatio
     `;
   }
 
-  const result = await pool.query<{ start: Date; group: string | null; count: number }>(
-    sql,
-    values,
-  );
+  const result = await pool.query<{
+    start: Date;
+    group: string | null;
+    count: number;
+  }>(sql, values);
 
   return result.rows.map((row) => ({
     start: row.start.toISOString(),

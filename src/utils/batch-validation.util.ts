@@ -1,17 +1,14 @@
-const VALID_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
+import type { IngestionError, LogEntry } from '../types/log.types.js';
+import { VALID_LEVELS } from '../types/log.types.js';
+
 const MAX_FUTURE_MS = 5 * 60 * 1000;
 
 // Matches ISO 8601 with timezone: 2024-01-01T00:00:00Z or 2024-01-01T00:00:00.000+03:00
 const ISO_8601_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
-export interface RejectedEntry {
-  index: number;
-  reason: string;
-}
-
 export interface ValidationResult {
-  accepted: any[];
-  rejected: RejectedEntry[];
+  accepted: LogEntry[];
+  rejected: IngestionError[];
 }
 
 function validateAttributes(attributes: unknown): string | null {
@@ -33,14 +30,14 @@ function validateAttributes(attributes: unknown): string | null {
   return null;
 }
 
-export function validateLogBatch(logs: any[]): ValidationResult {
-  const accepted: any[] = [];
-  const rejected: RejectedEntry[] = [];
+export function validateLogBatch(logs: unknown[]): ValidationResult {
+  const accepted: LogEntry[] = [];
+  const rejected: IngestionError[] = [];
   const now = Date.now();
   const ceiling = now + MAX_FUTURE_MS;
 
   for (let i = 0; i < logs.length; i++) {
-    const log = logs[i];
+    const log = logs[i] as Record<string, unknown>;
 
     // --- timestamp ---
     const ts = log.timestamp;
@@ -62,7 +59,7 @@ export function validateLogBatch(logs: any[]): ValidationResult {
     }
 
     // --- level ---
-    if (!VALID_LEVELS.has(log.level)) {
+    if (typeof log.level !== 'string' || !VALID_LEVELS.has(log.level)) {
       rejected.push({ index: i, reason: 'level must be one of: debug, info, warn, error' });
       continue;
     }
@@ -88,7 +85,15 @@ export function validateLogBatch(logs: any[]): ValidationResult {
       }
     }
 
-    accepted.push(log);
+    accepted.push({
+      timestamp: ts,
+      level: log.level as LogEntry['level'],
+      service: log.service,
+      message: log.message,
+      ...(log.attributes !== undefined
+        ? { attributes: log.attributes as LogEntry['attributes'] }
+        : {}),
+    });
   }
 
   return { accepted, rejected };

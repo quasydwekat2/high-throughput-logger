@@ -1,13 +1,14 @@
 import { pool } from '../../DB/client.js';
-import type { QueryParams, LogRow } from '../../types/log.types.js';
+import type {
+  ParsedQueryParams,
+  StoredLogEntry,
+  QueryLogsResponse,
+  LogLevel,
+  LogAttributes,
+} from '../../types/log.types.js';
 import { encodeCursor } from '../../utils/cursor.util.js';
 
-export interface QueryResult {
-  logs: LogRow[];
-  next_cursor: string | null;
-}
-
-export async function queryLogs(params: QueryParams): Promise<QueryResult> {
+export async function queryLogs(params: ParsedQueryParams): Promise<QueryLogsResponse> {
   const conditions: string[] = [];
   const values: unknown[] = [];
   let n = 1;
@@ -44,7 +45,7 @@ export async function queryLogs(params: QueryParams): Promise<QueryResult> {
     conditions.push(
       `(timestamp < $${tsPos}::timestamptz OR (timestamp = $${tsPos}::timestamptz AND id < $${idPos}::bigint))`,
     );
-    values.push(params.cursor.ts, params.cursor.id);
+    values.push(params.cursor.timestamp, params.cursor.id);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -66,7 +67,7 @@ export async function queryLogs(params: QueryParams): Promise<QueryResult> {
     level: string;
     service: string;
     message: string;
-    attributes: Record<string, string | number | boolean>;
+    attributes: LogAttributes;
   }>(sql, values);
 
   const rows = result.rows;
@@ -78,10 +79,10 @@ export async function queryLogs(params: QueryParams): Promise<QueryResult> {
     next_cursor = encodeCursor(last.timestamp.toISOString(), String(last.id));
   }
 
-  const logs: LogRow[] = rows.map((row) => ({
+  const logs: StoredLogEntry[] = rows.map((row) => ({
     id: String(row.id),
     timestamp: row.timestamp.toISOString(),
-    level: row.level,
+    level: row.level as LogLevel,
     service: row.service,
     message: row.message,
     attributes: row.attributes ?? {},

@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { parseQueryParams } from '../../utils/query-params.util.js';
 import { queryLogs } from '../../repositories/logs/query.repository.js';
+import type { QueryLogsResponse } from '../../types/log.types.js';
 
 export async function queryHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const qs = req.query as Record<string, string | string[] | undefined>;
@@ -10,7 +11,7 @@ export async function queryHandler(req: FastifyRequest, reply: FastifyReply): Pr
     return reply.code(400).send({ error: result.error });
   }
 
-  const { logs, next_cursor } = await queryLogs(result.params);
+  const response: QueryLogsResponse = await queryLogs(result.params);
 
-  return reply.code(200).send({ logs, next_cursor });
+  return reply.code(200).send(response);
 }
