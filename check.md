@@ -1,6 +1,6 @@
-# Project Checklist — Log Ingestion and Query Service
+# Final Project Checklist — Log Ingestion and Query Service
 
-Status legend: `[x]` done · `[~]` partial / needs work · `[ ]` not done
+Obligatory requirements only. Status: `[x]` done · `[~]` partial · `[ ]` not done
 
 ---
 
@@ -8,200 +8,185 @@ Status legend: `[x]` done · `[~]` partial / needs work · `[ ]` not done
 
 | # | Issue | Why it matters |
 |---|--------|----------------|
-| 1 | ~~`src/server.ts` is missing~~ **DONE** | `app.ts` builds Express; `server.ts` boots, checks DB, listens, graceful shutdown |
-| 2 | **No README** | Required deliverable |
-| 3 | **No CI pipeline** | Required deliverable |
-| 4 | **No automated tests / CI smoke** | Manual Docker E2E smoke done; Vitest + CI contract checks still missing |
-| 5 | **Load test results not measured/documented** | Performance grading needs evidence |
-| 6 | ~~`docker compose up` may need `.env`~~ **DONE** | Postgres/pgAdmin/app vars have compose defaults (`:-…`); bare `docker compose up` works without `.env` |
+| 1 | **No README** | Required deliverable |
+| 2 | **No CI pipeline** | Required deliverable |
+| 3 | **No automated tests / CI smoke** | Manual Docker E2E done; Vitest + CI still missing |
+| 4 | **Load test results not measured/documented** | Performance grading needs evidence |
+| 5 | **Demo video not recorded** | Required submission (~5 min) |
 
 ---
 
-## Part 1 — Required API Contract
+## 1. Core product concerns
 
-### 1.1 Endpoints & wiring
-- [x] `GET /health`
-- [x] `POST /logs`
-- [x] `GET /logs`
-- [x] `GET /logs/aggregate`
-- [x] App listens on port **8080** (compose maps `8080:8080`)
-- [x] **Server entrypoint** — `src/app.ts` (`buildApp`) + `src/server.ts` (listen, SIGINT/SIGTERM → `pool.end()`). DB liveness is owned by `/health` only.
+- [x] **Ingestion** — API accepts individual or batched structured logs, validates, stores efficiently
+- [x] **Querying** — filter by service, level, time, attributes, message; aggregate into time buckets / group dimensions
+- [~] **Retention** — expired data deleted; Partman `30 days` works, but retention is not configurable via env (spec asks configurable)
 
-### 1.2 `GET /health`
-- [x] Returns HTTP 200 when DB responds and migrations are applied
-- [x] Checks DB via `pgmigrations` count (connectivity + schema readiness; not duplicated in `server.ts`)
-- [x] Healthy only after migrations applied — queries `pgmigrations` (expects 3 rows; bump `EXPECTED_MIGRATION_COUNT` when adding a migration). Compose `depends_on: migrate` still boots order.
-- [x] Returns 503 when DB down or migrations incomplete (allowed; loadgen polls until 200)
+### Log entry fields
+- [x] `timestamp`
+- [x] `level`: debug / info / warn / error
+- [x] `service`
+- [x] `message`
+- [x] Flat key/value `attributes` (e.g. user_id, request_id, region)
 
-### 1.3 `POST /logs` — Ingestion
-- [x] Accepts batch `{ "logs": [...] }` (single entry OK)
-- [x] Per-entry validation (does not fail whole batch)
-- [x] Accepts valid / rejects invalid with `{ index, reason }`
-- [x] HTTP 200 when at least one accepted
-- [x] HTTP 400 when all rejected or bad top-level shape
-- [x] Central error middleware for all routes/handlers (`middleware/error.middleware.ts` + `types/app-error.ts`):
-  - Malformed JSON → 400
-  - ValidationError → 400
-  - IngestRejectedError → 400 `{ accepted, rejected }`
-  - AuthenticationError → 401
-  - NotFoundError / unknown route → 404
-  - DatabaseError / pg errors → 500
-  - ServiceUnavailableError (`/health`) → 503 `{ status: unavailable }`
-  - Unexpected → 500
+---
+
+## 2. Core requirements (musts)
+
+- [x] Required API contract implemented exactly
+- [x] Per-entry validation for ingestion batches
+- [x] Freely combinable query filters
+- [x] Time-bucketed aggregation
+- [x] Cursor-based pagination
+- [x] Starts with `docker compose up` (no `.env` required)
+- [ ] README with all required sections (see §8)
+
+---
+
+## 3. Resource limits (compose)
+
+- [x] App container: **0.5 CPU / 256 MB RAM**
+- [x] PostgreSQL: **1 CPU / 1 GB RAM**
+- [x] Postgres remains source of truth for reads and writes
+
+---
+
+## 4. Required API contract
+
+### 4.1 Runtime
+- [x] Listen on port **8080** inside app container
+- [x] Exposed as `localhost:8080` in `docker-compose.yml`
+
+### 4.2 `GET /health`
+- [x] HTTP 200 when ready to accept traffic
+- [x] Healthy only after: DB connected + migrations applied + ready for logs
+- [x] Loadgen can poll until 200 (503 when not ready is OK)
+
+### 4.3 `POST /logs` — Ingest
+- [x] Always accepts a batch (`{ "logs": [...] }`; single entry OK)
 - [x] Validation: timestamp ISO 8601, not > 5 min future
 - [x] Validation: level ∈ debug/info/warn/error
 - [x] Validation: non-empty service & message
-- [x] Validation: attributes flat object; string/number/boolean only (`AttributeValue`)
-- [x] Bulk insert strategies (switch one line in `ingest/select-strategy.ts`):
-  - [x] **`copy`** (default) — `COPY FROM STDIN` via `pg-copy-streams`
-  - [x] **`unnest`** — `INSERT … SELECT * FROM unnest(...)`
-  - [x] **`row-by-row`** — one `INSERT` per row (benchmark baseline)
+- [x] Validation: attributes flat; string/number/boolean only (no nested objects/arrays)
+- [x] Invalid entry does not fail whole batch
+- [x] Accept valid / reject invalid with `{ index, reason }`
+- [x] HTTP 200 when ≥1 accepted
+- [x] HTTP 400 when all rejected, malformed JSON, or bad top-level shape
+- [x] Response shape: `{ accepted, rejected: [{ index, reason }] }`
 
-### 1.4 `GET /logs` — Query
-- [x] Filters: `service`, `level`, `since`, `until`, `attr.<key>`, `q`, `limit`, `cursor`
-- [x] Freely combinable filters
-- [x] Sort: `timestamp DESC, id DESC` (deterministic)
-- [x] Cursor-based pagination (`next_cursor` or `null`)
+### 4.4 `GET /logs` — Query
+- [x] Optional, freely combinable: `service`, `level`, `since`, `until`, `attr.<key>`, `q`, `limit`, `cursor`
+- [~] `attr.<key>` compared **as strings** — current JSONB `@>` may miss numeric/boolean attrs (e.g. `retries: 3` vs `attr.retries=3`)
+- [x] Sort: timestamp DESC (deterministic when timestamps tie — `id DESC`)
+- [x] Cursor pagination; `next_cursor` or `null`
 - [x] Default limit 100, max 1000
 - [x] Invalid params → HTTP 400 `{ "error": "..." }`
-- [x] Request typed as `QueryLogsParams` → parsed `ParsedQueryParams`
-- [~] Spec: `attr.<key>` compared **as strings** — current `@>` JSONB match may miss numeric/boolean attrs stored as non-strings (e.g. `retries: 3` vs `attr.retries=3`)
 
-### 1.5 `GET /logs/aggregate`
+### 4.5 `GET /logs/aggregate`
 - [x] Required: `since`, `until`, `bucket` (`1m` / `5m` / `1h` / `1d`)
 - [x] Optional: `group_by` (`service` / `level`)
 - [x] Same filters as query: service, level, attr.*, q
 - [x] Ordered by bucket start ascending
 - [x] `group: null` when no `group_by`
-- [x] Empty buckets omitted
+- [x] Empty buckets may be omitted
 - [x] Invalid params → HTTP 400 `{ "error": "..." }`
-- [x] Request typed as `AggregateLogsParams` → parsed `ParsedAggregateParams`
 
 ---
 
-## Part 2 — Storage, Schema, Retention
+## 5. Load generator contract (obligatory posture)
 
-### 2.1 Schema & attributes
-- [x] Table `logs` with timestamp, level, service, message, attributes
-- [x] Attributes as **JSONB** (flat key/value)
-- [x] Partitioned by range on `timestamp` (monthly via pg_partman)
-- [x] Indexes: service+level+ts+id, level+ts+id, GIN attributes, GIN trigram on message
-- [x] Parameterized queries (no string-concat user values into SQL for filters)
+Even with no optional features, the default must satisfy:
 
-### 2.2 Retention
-- [x] Retention via **pg_partman** (drop old partitions, `retention = '30 days'`)
-- [~] Spec asks for **configurable** retention — currently hardcoded in migration; app env `RETENTION_DAYS` / `RETENTION_CRON` unused (and app-level cron not needed if Partman owns it)
-- [x] Avoids row-by-row deletes (partition drop) — good for load/locks
+- [x] Plain `docker compose up` (no env file / args / manual setup) serves all four endpoints exactly as specified
+- [x] Accepts **unauthenticated** requests on all four
+- [x] No rate limit / quota / tenancy that loadgen could hit by default
+- [x] Never respond 200 to a batch not durably accepted
+
+> Auth / rate limiting / multi-tenancy are **optional**. If not implemented, ignore those sections. If implemented later, they must stay off by default and follow the auth contract.
 
 ---
 
-## Part 3 — Infrastructure (Docker / Compose)
-
-- [x] `Dockerfile` (multi-stage production build)
-- [x] `Dockerfile.db` (Postgres 16 + pg_partman)
-- [x] `docker-compose.yml` with postgres, migrate, app
-- [x] Migrations run automatically before app starts
-- [x] Resource limits: app 0.5 CPU / 256MB; postgres 1 CPU / 1GB
-- [x] `docker compose up` **with no env file** — Postgres/pgAdmin/app vars use compose defaults (`POSTGRES_*`, `PGADMIN_*`, `PORT`, etc.)
-- [x] Extra infra OK (pgAdmin present) — Postgres remains source of truth
-- [x] Verified end-to-end: `docker compose up` → health 200 → ingest/query/aggregate (smoke: `POST /logs` accepted 1, `GET /logs` returned row, `GET /logs/aggregate` bucket count 1)
-
----
-
-## Part 4 — Performance Targets
+## 6. Performance targets (must prove)
 
 | Target | Status |
 |--------|--------|
-| ≥ 15,000 logs/sec sustained | `[ ]` not measured / not proven |
+| ≥ 15,000 logs/sec sustained | `[ ]` not measured |
 | No drops / crashes under load | `[ ]` not measured |
-| Aggregation p95 &lt; 1s | `[ ]` not measured |
+| Primary aggregation p95 &lt; 1s | `[ ]` not measured |
 | Query OK while ingesting | `[ ]` not measured |
-| ~1,000,000 rows (~1 month) | `[ ]` not measured |
-| New data queryable &lt; 20s | `[x]` smoke-verified (ingest → query immediate); not load-tested |
-| 1 agg req/sec during ingest | `[ ]` not measured |
-| Loadgen portal submissions / tuning | `[ ]` not done |
+| ~1,000,000 rows (~1 month of data) | `[ ]` not measured |
+| New data queryable &lt; 20s | `[x]` smoke OK; not load-tested |
+| 1 aggregation req/sec during ingest | `[ ]` not measured |
+| Own load tests before submit | `[ ]` not done |
+| Submit / tune via https://loadgen.foothilltech.net/ | `[ ]` not done |
 
-### Performance-oriented implementation already in place
-- [x] Bulk insert strategies: **COPY** (default), `unnest`, row-by-row
+A correct solution that misses these is **not complete**.
+
+### Implementation already helping performance
+- [x] Bulk insert (COPY default; unnest / row-by-row available)
 - [x] Partitioning + indexes aligned to query patterns
-- [x] Connection pool tuning env vars
-- [ ] Optional: in-app buffer / batching queue (commented ideas in `config.ts` only)
+- [x] Connection pool tuning
+- [x] Ingest buffer (flush by size/timer)
 
 ---
 
-## Part 5 — Code Quality, Tests, CI, Docs
+## 7. What graders evaluate (obligatory quality bar)
 
-### 5.1 Structure & quality
-- [x] TypeScript, typed contracts in `log.types.ts` (request + parsed + response)
-- [x] Separation: `app` / `server` → routes → handlers → repositories / utils
-- [x] Ingest strategy pattern under `repositories/logs/ingest/`
-- [x] Clear validation utils + query param parsing
-- [~] Dead / unused deps possible (`node-cron` unused; `pg-copy-streams` **used** by COPY strategy)
+| Area | Status | Notes |
+|------|--------|--------|
+| Architecture | `[~]` | Schema, attributes JSONB, data flow, structure in place; document in README |
+| Performance | `[ ]` | Need measured evidence under load |
+| Retention | `[~]` | Partman drop partitions (good); configurability incomplete |
+| Reliability | `[x]` | Validation, errors, edge cases largely covered |
+| Code quality | `[x]` | Typed TS, clear layers |
+| Security | `[x]` | Parameterized queries |
+| Separation of concerns | `[x]` | Handlers ≠ repositories / query builders |
+| Infrastructure | `[x]` | Compose works first run; migrations auto |
+| CI | `[ ]` | Build / test / validate missing |
+| Documentation | `[ ]` | README missing |
 
-### 5.2 Tests
-- [ ] Unit / integration tests (Vitest configured, **no test files**)
-- [~] Contract smoke tests for the 4 endpoints — **manual Docker E2E done**; automated Vitest/CI smoke still missing
+---
 
-### 5.3 CI
-- [ ] GitHub Actions (or similar): build, test, validate
-- [ ] Smoke with `AUTH_ENABLED=false` (required)
-- [ ] Smoke with `AUTH_ENABLED=true` + `LOADGEN_API_KEY` — **only if auth is implemented**
+## 8. README (required sections)
 
-### 5.4 README (required sections)
 - [ ] Setup and usage
 - [ ] API documentation
 - [ ] Schema and index design
 - [ ] Attribute storage strategy
 - [ ] Retention strategy
-- [ ] Load-test methodology + measured results
+- [ ] Load-test methodology
+- [ ] Measured performance results (env, dataset size, batch size, ingest rate, query rate, latency percentiles, resource usage, bottlenecks, optimizations)
 - [ ] Known limitations
-- [ ] Optional features list (defaults + env vars) — or state “none”
+- [ ] Optional features list (defaults + env vars) — or state **none**
 
 ---
 
-## Part 6 — Optional Features & Stretch Goals
+## 9. Deliverables
 
-Golden rule: extras additive, off by default, `docker compose up` = plain core service.
-
-| Feature | Status | Notes |
-|---------|--------|--------|
-| Auth / API keys | `[ ]` not implemented (commented in config) | OK to skip; default must stay open |
-| Rate limiting | `[ ]` | Must stay off by default |
-| Multi-tenancy | `[ ]` | |
-| Dashboard | `[ ]` | |
-| Metrics / alerting | `[ ]` | |
-| Live-tail | `[ ]` | |
-| Rollup tables | `[ ]` | |
-| Backpressure / DLQ | `[ ]` | |
-| pgAdmin in compose | `[~]` present | Dev aid; document if kept |
-| Ingest strategy switch | `[x]` | One-line switch; COPY default |
-
----
-
-## Part 7 — Deliverables & Demo Prep
-
-- [~] GitHub repo with history (local repo exists; push/history quality TBD)
-- [x] Working Docker Compose (zero-config defaults + E2E smoke verified)
-- [ ] Passing CI pipeline
+- [~] GitHub repository with clean, incremental commit history
+- [x] Working Docker Compose (`docker compose up`)
+- [ ] Passing CI pipeline (build, test, validate)
 - [ ] Complete README
-- [ ] Load testing via https://loadgen.foothilltech.net/ (iterate / tune)
+- [ ] Load testing via portal + tune as needed
 - [ ] ~5 min video: architecture + live demo
 - [ ] Demo readiness: explain schema, indexes, EXPLAIN, ingest/query paths
+
+### CI smoke (obligatory)
+- [ ] `AUTH_ENABLED=false` — all four endpoints with no credentials  
+- [ ] `AUTH_ENABLED=true` + `LOADGEN_API_KEY` — **only if auth is implemented**
 
 ---
 
 ## Suggested next work order
 
-1. ~~Add `src/server.ts` (build app, listen, graceful pool handling).~~ **Done** (`app.ts` + `server.ts`).
-2. ~~Add JSON body-parse error middleware → 400.~~ **Done** (`middleware/error.middleware.ts`).
-3. Decide attr string-equality strategy (cast/compare as text) if loadgen uses numeric attrs.
-4. ~~Make compose env defaults so bare `docker compose up` works.~~ **Done**.
-5. ~~Smoke-test all 4 endpoints locally / in Docker.~~ **Done**.
-6. Write README (design + retention + indexes + ingest strategies).
-7. Add Vitest smoke/contract tests + GitHub Actions CI.
-8. Run load tests (compare COPY vs unnest), tune, document numbers in README.
-9. Submit to loadgen portal; iterate.
-10. Record demo video.
+1. Fix `attr.<key>` string-equality if loadgen uses numeric/boolean attrs.
+2. Make retention configurable (or document Partman value + how to change it if accepted as design).
+3. Write README (all §8 sections).
+4. Add Vitest smoke/contract tests + GitHub Actions CI.
+5. Run load tests; tune; document numbers in README.
+6. Submit to https://loadgen.foothilltech.net/ and iterate.
+7. Record ~5 min demo video.
+8. Submit final project.
 
 ---
 
@@ -209,10 +194,10 @@ Golden rule: extras additive, off by default, `docker compose up` = plain core s
 
 | Area | Rough status |
 |------|----------------|
-| Core API implementation | ~97% (entrypoint + JSON 400 middleware done; attr string match still open) |
-| Retention | Done (Partman); configurability partial |
-| Docker / infra | **Done** (zero-config defaults + E2E smoke verified) |
-| Performance proof | ~5% (queryable-after-ingest smoke OK; load targets not measured) |
-| Tests / CI / README | ~5% (manual E2E only; no Vitest/CI/README yet) |
-| Optional features | Ingest strategy switch only (fine) |
-| Submission readiness | **Not ready** until README, CI, automated tests, and load numbers are cleared |
+| Core API | ~97% (attr string match still open) |
+| Retention | Done via Partman; configurability partial |
+| Docker / infra | **Done** |
+| Performance proof | ~5% (smoke only) |
+| Tests / CI / README | ~5% |
+| Submission readiness | **Not ready** until README, CI, tests, load numbers, and video are done |
+`)

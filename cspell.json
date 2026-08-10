@@ -19,7 +19,8 @@
     "cpus",
     "pgdata",
     "gin_trgm_ops",
-    "idx_logs_message_trgm"
+    "idx_logs_message_trgm",
+    "dont"
   ],
   "ignorePaths": ["node_modules", "dist", "package-lock.json"]
 }

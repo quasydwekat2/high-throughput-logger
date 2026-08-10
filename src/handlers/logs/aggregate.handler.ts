@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
-import { parseAggregateParams } from '../../utils/query-params.util.js';
+import { parseAggregateParams } from '../../utils/query-validation.util.js';
 import { aggregateLogs } from '../../repositories/logs/aggregate.repository.js';
-import { ValidationError } from '../../types/app-error.js';
 import type {
   AggregateLogsParams,
   AggregateLogsResponse,
@@ -12,13 +11,8 @@ export async function aggregateHandler(
   res: Response,
 ): Promise<void> {
   const qs = req.query as AggregateLogsParams;
-
-  const result = parseAggregateParams(qs);
-  if ('error' in result) {
-    throw new ValidationError(result.error);
-  }
-
-  const buckets = await aggregateLogs(result.params);
+  const params = parseAggregateParams(qs);
+  const buckets = await aggregateLogs(params);
   const response: AggregateLogsResponse = { buckets };
   res.status(200).json(response);
 }

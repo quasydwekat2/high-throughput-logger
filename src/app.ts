@@ -14,7 +14,8 @@ export function buildApp(): Express {
   const app = express();
 
   app.use(cors());
-  app.use(express.json());
+  // Default 100kb is too small for high-throughput batches (~500 logs ≈ 100kb+).
+  app.use(express.json({ limit: '2mb' }));
 
   healthRoute(app);
   logsIngestRoute(app);

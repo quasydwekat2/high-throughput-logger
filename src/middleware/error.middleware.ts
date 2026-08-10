@@ -12,11 +12,25 @@ function isMalformedJsonError(err: unknown): boolean {
   return e.status === 400 || e.type === 'entity.parse.failed' || 'body' in e;
 }
 
+function isPayloadTooLargeError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const e = err as Error & { type?: string; status?: number };
+  return (
+    e.type === 'entity.too.large' ||
+    e.status === 413 ||
+    e.name === 'PayloadTooLargeError'
+  );
+}
+
 function toAppError(err: unknown): AppError | null {
   if (err instanceof AppError) return err;
 
   if (isMalformedJsonError(err)) {
     return new AppError(400, 'malformed JSON body');
+  }
+
+  if (isPayloadTooLargeError(err)) {
+    return new AppError(413, 'request body too large');
   }
 
   if (err instanceof PgDatabaseError) {
@@ -36,6 +50,7 @@ function toAppError(err: unknown): AppError | null {
  * | IngestRejectedError     | 400    |
  * | AuthenticationError     | 401    |
  * | NotFoundError           | 404    |
+ * | Payload too large       | 413    |
  * | DatabaseError / pg      | 500    |
  * | ServiceUnavailableError | 503    |
  * | Unexpected              | 500    |
