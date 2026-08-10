@@ -5,7 +5,7 @@ import type {
   QueryLogsResponse,
   LogLevel,
   LogAttributes,
-} from '../../types/log.types.js';
+} from '../../types/logs/index.js';
 import { encodeCursor } from '../../utils/cursor-pagination.util.js';
 
 export async function queryLogs(

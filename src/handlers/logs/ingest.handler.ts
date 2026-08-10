@@ -6,11 +6,11 @@ import { ingestBuffer } from '../../services/ingest-buffer.js';
 import {
   IngestRejectedError,
   ValidationError,
-} from '../../types/app-error.js';
+} from '../../types/error.middleware/index.js';
 import type {
   IngestLogsRequest,
   IngestLogsResponse,
-} from '../../types/log.types.js';
+} from '../../types/logs/index.js';
 
 export async function ingestHandler(
   req: Request,

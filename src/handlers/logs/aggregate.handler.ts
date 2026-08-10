@@ -4,7 +4,7 @@ import { aggregateLogs } from '../../repositories/logs/aggregate.repository.js';
 import type {
   AggregateLogsParams,
   AggregateLogsResponse,
-} from '../../types/log.types.js';
+} from '../../types/logs/index.js';
 
 export async function aggregateHandler(
   req: Request,

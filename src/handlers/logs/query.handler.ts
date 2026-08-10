@@ -4,7 +4,7 @@ import { queryLogs } from '../../repositories/logs/query.repository.js';
 import type {
   QueryLogsParams,
   QueryLogsResponse,
-} from '../../types/log.types.js';
+} from '../../types/logs/index.js';
 
 export async function queryHandler(req: Request, res: Response): Promise<void> {
   const qs = req.query as QueryLogsParams;

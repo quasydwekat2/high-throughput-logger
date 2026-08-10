@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { insertLogs } from '../repositories/logs/ingest.repository.js';
-import { AppError } from '../types/app-error.js';
-import type { LogEntry } from '../types/log.types.js';
+import { AppError } from '../types/error.middleware/index.js';
+import type { LogEntry } from '../types/logs/index.js';
 
 /**
  * In-memory ingest buffer: enqueue validated logs, flush in bulk by size or timer.

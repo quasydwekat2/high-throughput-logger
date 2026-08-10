@@ -2,8 +2,8 @@ import type {
   AttributeValue,
   IngestionError,
   LogEntry,
-} from '../types/log.types.js';
-import { VALID_LEVELS } from '../types/log.types.js';
+} from '../types/logs/index.js';
+import { VALID_LEVELS } from '../types/logs/index.js';
 
 const MAX_FUTURE_MS = 5 * 60 * 1000;
 

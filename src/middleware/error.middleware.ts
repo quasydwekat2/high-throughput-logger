@@ -1,10 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { DatabaseError as PgDatabaseError } from 'pg';
-import {
-  AppError,
-  DatabaseError,
-  type ErrorResponse,
-} from '../types/app-error.js';
+import { AppError, DatabaseError } from '../types/error.middleware/index.js';
+import type { ErrorResponse } from '../types/http/error-response.types.js';
 
 function isMalformedJsonError(err: unknown): boolean {
   if (!(err instanceof SyntaxError)) return false;

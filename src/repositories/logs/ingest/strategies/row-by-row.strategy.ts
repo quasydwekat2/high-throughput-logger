@@ -1,5 +1,5 @@
 import { pool } from '../../../../DB/client.js';
-import type { InsertLogsStrategy } from '../../../../types/log.types.js';
+import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
 
 /**
  * One INSERT per row inside a single transaction.

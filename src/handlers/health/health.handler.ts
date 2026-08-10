@@ -1,9 +1,7 @@
 import type { Request, Response } from 'express';
 import { pool } from '../../DB/client.js';
-import {
-  ServiceUnavailableError,
-  type HealthStatusResponse,
-} from '../../types/app-error.js';
+import { ServiceUnavailableError } from '../../types/error.middleware/index.js';
+import type { HealthStatusResponse } from '../../types/http/health.types.js';
 
 /**
  * Must match how many migrations node-pg-migrate has applied

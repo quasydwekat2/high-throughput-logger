@@ -2,8 +2,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { from as copyFrom } from 'pg-copy-streams';
 import { pool } from '../../../../DB/client.js';
-import type { LogEntry } from '../../../../types/log.types.js';
-import type { InsertLogsStrategy } from '../../../../types/log.types.js';
+import type { LogEntry } from '../../../../types/logs/index.js';
+import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
 
 /** Escape a field for PostgreSQL text-format COPY (tab-delimited). */
 function escapeCopyText(value: string): string {

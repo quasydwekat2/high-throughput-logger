@@ -1,4 +1,4 @@
-import type { CursorPayload } from '../types/log.types.js';
+import type { CursorPayload } from '../types/logs/index.js';
 
 export function encodeCursor(timestamp: string, id: string): string {
   return Buffer.from(JSON.stringify({ timestamp, id })).toString('base64url');

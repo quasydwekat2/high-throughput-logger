@@ -6,13 +6,13 @@ import type {
   BucketSize,
   GroupByOption,
   LogLevel,
-} from '../types/log.types.js';
+} from '../types/logs/index.js';
 import {
   VALID_LEVELS,
   VALID_BUCKETS,
   VALID_GROUP_BY,
-} from '../types/log.types.js';
-import { ValidationError } from '../types/app-error.js';
+} from '../types/logs/index.js';
+import { ValidationError } from '../types/error.middleware/index.js';
 import { decodeCursor } from './cursor-pagination.util.js';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────

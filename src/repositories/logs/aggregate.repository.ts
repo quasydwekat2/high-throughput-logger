@@ -3,7 +3,7 @@ import type {
   ParsedAggregateParams,
   AggregateBucket,
   BucketSize,
-} from '../../types/log.types.js';
+} from '../../types/logs/index.js';
 
 // Maps bucket size to the SQL expression that truncates a timestamp to that bucket
 function bucketExpr(size: BucketSize): string {

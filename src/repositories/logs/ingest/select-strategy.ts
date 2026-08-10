@@ -1,7 +1,7 @@
 import type {
   IngestStrategyName,
   InsertLogsStrategy,
-} from '../../../types/log.types.js';
+} from '../../../types/logs/index.js';
 import { insertWithCopy } from './strategies/copy.strategy.js';
 import { insertWithUnnest } from './strategies/unnest.strategy.js';
 import { insertRowByRow } from './strategies/row-by-row.strategy.js';
