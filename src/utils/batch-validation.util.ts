@@ -1,4 +1,8 @@
-import type { IngestionError, LogEntry } from '../types/log.types.js';
+import type {
+  AttributeValue,
+  IngestionError,
+  LogEntry,
+} from '../types/log.types.js';
 import { VALID_LEVELS } from '../types/log.types.js';
 
 const MAX_FUTURE_MS = 5 * 60 * 1000;
@@ -12,6 +16,14 @@ export interface ValidationResult {
   rejected: IngestionError[];
 }
 
+function isAttributeValue(value: unknown): value is AttributeValue {
+  return (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  );
+}
+
 function validateAttributes(attributes: unknown): string | null {
   if (attributes === undefined || attributes === null) return null;
 
@@ -22,13 +34,7 @@ function validateAttributes(attributes: unknown): string | null {
   const entries = Object.values(attributes as Record<string, unknown>);
   for (let i = 0; i < entries.length; i++) {
     const v = entries[i];
-    const t = typeof v;
-    if (
-      t === 'object' ||
-      t === 'function' ||
-      t === 'symbol' ||
-      t === 'undefined'
-    ) {
+    if (!isAttributeValue(v)) {
       return 'attributes values must be strings, numbers, or booleans (no nested objects or arrays)';
     }
   }

@@ -54,15 +54,23 @@ export interface IngestLogsResponse {
   rejected: IngestionError[];
 }
 
+/** Available bulk-insert strategies for log ingestion. */
+export type IngestStrategyName = 'copy' | 'unnest' | 'row-by-row';
+
+/** Shared contract every ingest strategy must implement. */
+export type InsertLogsStrategy = (logs: LogEntry[]) => Promise<void>;
+
 // ─── GET /logs (Query & Cursor Pagination Contract) ───────────────────────────
 
+/** Raw GET /logs query-string contract (all values arrive as strings). */
 export interface QueryLogsParams {
   service?: string;
-  level?: LogLevel;
+  /** One of: debug, info, warn, error */
+  level?: string;
   since?: string;
   until?: string;
   q?: string;
-  limit?: number;
+  limit?: string;
   cursor?: string;
   /** Dynamic attribute filters, e.g. attr.user_id=42 */
   [key: `attr.${string}`]: string | undefined;
@@ -96,13 +104,20 @@ export interface ParsedQueryParams {
 export type BucketSize = '1m' | '5m' | '1h' | '1d';
 export type GroupByOption = 'service' | 'level';
 
+/**
+ * Raw GET /logs/aggregate query-string contract.
+ * Required fields are validated at parse time (missing → 400).
+ */
 export interface AggregateLogsParams {
-  since: string;
-  until: string;
-  bucket: BucketSize;
-  group_by?: GroupByOption;
+  since?: string;
+  until?: string;
+  /** One of: 1m, 5m, 1h, 1d */
+  bucket?: string;
+  /** One of: service, level */
+  group_by?: string;
   service?: string;
-  level?: LogLevel;
+  /** One of: debug, info, warn, error */
+  level?: string;
   q?: string;
   [key: `attr.${string}`]: string | undefined;
 }

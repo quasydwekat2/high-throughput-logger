@@ -23,6 +23,7 @@ export const config = {
   // // Retention
   // retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),
   // retentionCron: process.env.RETENTION_CRON ?? '0 * * * *',
+  // we dont need it bcz we are not using retention cron-job
 
   // // Ingestion buffer
   // flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? '1000', 10),

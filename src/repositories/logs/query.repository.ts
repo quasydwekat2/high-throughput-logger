@@ -8,7 +8,9 @@ import type {
 } from '../../types/log.types.js';
 import { encodeCursor } from '../../utils/cursor-pagination.util.js';
 
-export async function queryLogs(params: ParsedQueryParams): Promise<QueryLogsResponse> {
+export async function queryLogs(
+  params: ParsedQueryParams,
+): Promise<QueryLogsResponse> {
   const conditions: string[] = [];
   const values: unknown[] = [];
   let n = 1;
@@ -48,7 +50,8 @@ export async function queryLogs(params: ParsedQueryParams): Promise<QueryLogsRes
     values.push(params.cursor.timestamp, params.cursor.id);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Fetch one extra row to determine whether a next page exists
   const fetchLimit = params.limit + 1;

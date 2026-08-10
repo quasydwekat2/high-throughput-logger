@@ -1,6 +1,8 @@
 import type {
+  AggregateLogsParams,
   ParsedQueryParams,
   ParsedAggregateParams,
+  QueryLogsParams,
   BucketSize,
   GroupByOption,
   LogLevel,
@@ -11,8 +13,6 @@ import {
   VALID_GROUP_BY,
 } from '../types/log.types.js';
 import { decodeCursor } from './cursor-pagination.util.js';
-
-type RawQS = Record<string, string | string[] | undefined>;
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -26,7 +26,9 @@ function parseDate(
   return { date: new Date(ms) };
 }
 
-function extractAttrs(qs: RawQS): Record<string, string> {
+function extractAttrs(
+  qs: QueryLogsParams | AggregateLogsParams,
+): Record<string, string> {
   const attrs: Record<string, string> = {};
   for (const [key, val] of Object.entries(qs)) {
     if (key.startsWith('attr.') && typeof val === 'string') {
@@ -36,33 +38,25 @@ function extractAttrs(qs: RawQS): Record<string, string> {
   return attrs;
 }
 
-function scalar(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
-
 // ─── GET /logs ────────────────────────────────────────────────────────────────
 
 export function parseQueryParams(
-  qs: RawQS,
+  qs: QueryLogsParams,
 ): { params: ParsedQueryParams } | { error: string } {
-  const rawLevel = scalar(qs['level']);
-  if (rawLevel !== undefined && !VALID_LEVELS.has(rawLevel)) {
+  if (qs.level !== undefined && !VALID_LEVELS.has(qs.level)) {
     return { error: `invalid level: must be one of debug, info, warn, error` };
   }
 
   let since: Date | undefined;
-  const rawSince = scalar(qs['since']);
-  if (rawSince !== undefined) {
-    const result = parseDate(rawSince, 'since');
+  if (qs.since !== undefined) {
+    const result = parseDate(qs.since, 'since');
     if ('error' in result) return result;
     since = result.date;
   }
 
   let until: Date | undefined;
-  const rawUntil = scalar(qs['until']);
-  if (rawUntil !== undefined) {
-    const result = parseDate(rawUntil, 'until');
+  if (qs.until !== undefined) {
+    const result = parseDate(qs.until, 'until');
     if ('error' in result) return result;
     until = result.date;
   }
@@ -71,32 +65,30 @@ export function parseQueryParams(
     return { error: 'until must be later than since' };
   }
 
-  const rawLimit = scalar(qs['limit']);
   let limit = 100;
-  if (rawLimit !== undefined) {
-    if (!/^\d+$/.test(rawLimit))
+  if (qs.limit !== undefined) {
+    if (!/^\d+$/.test(qs.limit))
       return { error: 'limit must be a positive integer' };
-    limit = parseInt(rawLimit, 10);
+    limit = parseInt(qs.limit, 10);
     if (limit < 1 || limit > 1000)
       return { error: 'limit must be between 1 and 1000' };
   }
 
-  const rawCursor = scalar(qs['cursor']);
   let cursor: ParsedQueryParams['cursor'];
-  if (rawCursor !== undefined) {
-    const decoded = decodeCursor(rawCursor);
+  if (qs.cursor !== undefined) {
+    const decoded = decodeCursor(qs.cursor);
     if (decoded === null) return { error: 'invalid or malformed cursor' };
     cursor = decoded;
   }
 
   return {
     params: {
-      service: scalar(qs['service']),
-      level: rawLevel as LogLevel | undefined,
+      service: qs.service,
+      level: qs.level as LogLevel | undefined,
       since,
       until,
       attrs: extractAttrs(qs),
-      q: scalar(qs['q']),
+      q: qs.q,
       limit,
       cursor,
     },
@@ -106,35 +98,30 @@ export function parseQueryParams(
 // ─── GET /logs/aggregate ──────────────────────────────────────────────────────
 
 export function parseAggregateParams(
-  qs: RawQS,
+  qs: AggregateLogsParams,
 ): { params: ParsedAggregateParams } | { error: string } {
-  const rawSince = scalar(qs['since']);
-  if (!rawSince) return { error: 'since is required' };
-  const sinceResult = parseDate(rawSince, 'since');
+  if (!qs.since) return { error: 'since is required' };
+  const sinceResult = parseDate(qs.since, 'since');
   if ('error' in sinceResult) return sinceResult;
 
-  const rawUntil = scalar(qs['until']);
-  if (!rawUntil) return { error: 'until is required' };
-  const untilResult = parseDate(rawUntil, 'until');
+  if (!qs.until) return { error: 'until is required' };
+  const untilResult = parseDate(qs.until, 'until');
   if ('error' in untilResult) return untilResult;
 
   if (untilResult.date <= sinceResult.date) {
     return { error: 'until must be later than since' };
   }
 
-  const rawBucket = scalar(qs['bucket']);
-  if (!rawBucket) return { error: 'bucket is required' };
-  if (!VALID_BUCKETS.has(rawBucket)) {
+  if (!qs.bucket) return { error: 'bucket is required' };
+  if (!VALID_BUCKETS.has(qs.bucket)) {
     return { error: 'bucket must be one of: 1m, 5m, 1h, 1d' };
   }
 
-  const rawGroupBy = scalar(qs['group_by']);
-  if (rawGroupBy !== undefined && !VALID_GROUP_BY.has(rawGroupBy)) {
+  if (qs.group_by !== undefined && !VALID_GROUP_BY.has(qs.group_by)) {
     return { error: 'group_by must be one of: service, level' };
   }
 
-  const rawLevel = scalar(qs['level']);
-  if (rawLevel !== undefined && !VALID_LEVELS.has(rawLevel)) {
+  if (qs.level !== undefined && !VALID_LEVELS.has(qs.level)) {
     return { error: 'invalid level: must be one of debug, info, warn, error' };
   }
 
@@ -142,12 +129,12 @@ export function parseAggregateParams(
     params: {
       since: sinceResult.date,
       until: untilResult.date,
-      bucket: rawBucket as BucketSize,
-      group_by: rawGroupBy as GroupByOption | undefined,
-      service: scalar(qs['service']),
-      level: rawLevel as LogLevel | undefined,
+      bucket: qs.bucket as BucketSize,
+      group_by: qs.group_by as GroupByOption | undefined,
+      service: qs.service,
+      level: qs.level as LogLevel | undefined,
       attrs: extractAttrs(qs),
-      q: scalar(qs['q']),
+      q: qs.q,
     },
   };
 }

@@ -7,7 +7,9 @@ import {
   logsQueryRoute,
   logsAggregateRoute,
 } from './routes/index.js';
+import { errorMiddleware, notFoundMiddleware } from './middleware/index.js';
 
+/** Builds the Express app (middleware + routes). Does not listen. */
 export function buildApp(): Express {
   const app = express();
 
@@ -18,6 +20,9 @@ export function buildApp(): Express {
   logsIngestRoute(app);
   logsQueryRoute(app);
   logsAggregateRoute(app);
+
+  app.use(notFoundMiddleware);
+  app.use(errorMiddleware);
 
   return app;
 }
