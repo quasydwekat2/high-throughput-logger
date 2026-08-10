@@ -1,14 +1,11 @@
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { Request, Response } from 'express';
 import { pool } from '../../DB/client.js';
 
-export async function healthHandler(
-  _req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function healthHandler(_req: Request, res: Response): Promise<void> {
   try {
     await pool.query('SELECT 1');
-    return reply.code(200).send({ status: 'ok' });
+    res.status(200).json({ status: 'ok' });
   } catch {
-    return reply.code(503).send({ status: 'unavailable' });
+    res.status(503).json({ status: 'unavailable' });
   }
 }

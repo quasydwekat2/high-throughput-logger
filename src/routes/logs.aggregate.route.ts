@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { Express } from 'express';
 import { aggregateHandler } from '../handlers/logs/aggregate.handler.js';
 
-export async function logsAggregateRoute(app: FastifyInstance): Promise<void> {
+export function logsAggregateRoute(app: Express): void {
   app.get('/logs/aggregate', aggregateHandler);
 }

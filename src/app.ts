@@ -1,5 +1,6 @@
-import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import express from 'express';
+import type { Express } from 'express';
+import cors from 'cors';
 import {
   healthRoute,
   logsIngestRoute,
@@ -7,13 +8,16 @@ import {
   logsAggregateRoute,
 } from './routes/index.js';
 
-export function buildApp(): FastifyInstance {
-  const app = Fastify({ logger: false });
+export function buildApp(): Express {
+  const app = express();
 
-  app.register(healthRoute);
-  app.register(logsIngestRoute);
-  app.register(logsQueryRoute);
-  app.register(logsAggregateRoute);
+  app.use(cors());
+  app.use(express.json());
+
+  healthRoute(app);
+  logsIngestRoute(app);
+  logsQueryRoute(app);
+  logsAggregateRoute(app);
 
   return app;
 }

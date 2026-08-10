@@ -4,7 +4,8 @@ import { VALID_LEVELS } from '../types/log.types.js';
 const MAX_FUTURE_MS = 5 * 60 * 1000;
 
 // Matches ISO 8601 with timezone: 2024-01-01T00:00:00Z or 2024-01-01T00:00:00.000+03:00
-const ISO_8601_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_8601_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 export interface ValidationResult {
   accepted: LogEntry[];
@@ -22,7 +23,12 @@ function validateAttributes(attributes: unknown): string | null {
   for (let i = 0; i < entries.length; i++) {
     const v = entries[i];
     const t = typeof v;
-    if (t === 'object' || t === 'function' || t === 'symbol' || t === 'undefined') {
+    if (
+      t === 'object' ||
+      t === 'function' ||
+      t === 'symbol' ||
+      t === 'undefined'
+    ) {
       return 'attributes values must be strings, numbers, or booleans (no nested objects or arrays)';
     }
   }
@@ -42,7 +48,10 @@ export function validateLogBatch(logs: unknown[]): ValidationResult {
     // --- timestamp ---
     const ts = log.timestamp;
     if (typeof ts !== 'string' || !ISO_8601_RE.test(ts)) {
-      rejected.push({ index: i, reason: 'timestamp must be a valid ISO 8601 string' });
+      rejected.push({
+        index: i,
+        reason: 'timestamp must be a valid ISO 8601 string',
+      });
       continue;
     }
     const tsMs = Date.parse(ts);
@@ -60,7 +69,10 @@ export function validateLogBatch(logs: unknown[]): ValidationResult {
 
     // --- level ---
     if (typeof log.level !== 'string' || !VALID_LEVELS.has(log.level)) {
-      rejected.push({ index: i, reason: 'level must be one of: debug, info, warn, error' });
+      rejected.push({
+        index: i,
+        reason: 'level must be one of: debug, info, warn, error',
+      });
       continue;
     }
 

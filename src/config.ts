@@ -11,7 +11,10 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   pgPoolMax: parseInt(process.env.PG_POOL_MAX ?? '8', 10),
   pgIdleTimeoutMs: parseInt(process.env.PG_IDLE_TIMEOUT_MS ?? '30000', 10),
-  pgConnectionTimeoutMs: parseInt(process.env.PG_CONNECTION_TIMEOUT_MS ?? '5000', 10),
+  pgConnectionTimeoutMs: parseInt(
+    process.env.PG_CONNECTION_TIMEOUT_MS ?? '5000',
+    10,
+  ),
 
   // Auth
   // authEnabled: process.env.AUTH_ENABLED === 'true',

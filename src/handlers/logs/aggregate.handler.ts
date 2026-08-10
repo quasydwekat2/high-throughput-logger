@@ -1,18 +1,19 @@
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { Request, Response } from 'express';
 import { parseAggregateParams } from '../../utils/query-params.util.js';
 import { aggregateLogs } from '../../repositories/logs/aggregate.repository.js';
 import type { AggregateLogsResponse } from '../../types/log.types.js';
 
-export async function aggregateHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function aggregateHandler(req: Request, res: Response): Promise<void> {
   const qs = req.query as Record<string, string | string[] | undefined>;
 
   const result = parseAggregateParams(qs);
   if ('error' in result) {
-    return reply.code(400).send({ error: result.error });
+    res.status(400).json({ error: result.error });
+    return;
   }
 
   const buckets = await aggregateLogs(result.params);
   const response: AggregateLogsResponse = { buckets };
 
-  return reply.code(200).send(response);
+  res.status(200).json(response);
 }

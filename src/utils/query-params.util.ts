@@ -5,16 +5,24 @@ import type {
   GroupByOption,
   LogLevel,
 } from '../types/log.types.js';
-import { VALID_LEVELS, VALID_BUCKETS, VALID_GROUP_BY } from '../types/log.types.js';
-import { decodeCursor } from './cursor.util.js';
+import {
+  VALID_LEVELS,
+  VALID_BUCKETS,
+  VALID_GROUP_BY,
+} from '../types/log.types.js';
+import { decodeCursor } from './cursor-pagination.util.js';
 
 type RawQS = Record<string, string | string[] | undefined>;
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function parseDate(value: string, name: string): { date: Date } | { error: string } {
+function parseDate(
+  value: string,
+  name: string,
+): { date: Date } | { error: string } {
   const ms = Date.parse(value);
-  if (isNaN(ms)) return { error: `invalid ${name}: must be a valid ISO 8601 timestamp` };
+  if (isNaN(ms))
+    return { error: `invalid ${name}: must be a valid ISO 8601 timestamp` };
   return { date: new Date(ms) };
 }
 
@@ -35,7 +43,9 @@ function scalar(value: string | string[] | undefined): string | undefined {
 
 // ─── GET /logs ────────────────────────────────────────────────────────────────
 
-export function parseQueryParams(qs: RawQS): { params: ParsedQueryParams } | { error: string } {
+export function parseQueryParams(
+  qs: RawQS,
+): { params: ParsedQueryParams } | { error: string } {
   const rawLevel = scalar(qs['level']);
   if (rawLevel !== undefined && !VALID_LEVELS.has(rawLevel)) {
     return { error: `invalid level: must be one of debug, info, warn, error` };
@@ -64,9 +74,11 @@ export function parseQueryParams(qs: RawQS): { params: ParsedQueryParams } | { e
   const rawLimit = scalar(qs['limit']);
   let limit = 100;
   if (rawLimit !== undefined) {
-    if (!/^\d+$/.test(rawLimit)) return { error: 'limit must be a positive integer' };
+    if (!/^\d+$/.test(rawLimit))
+      return { error: 'limit must be a positive integer' };
     limit = parseInt(rawLimit, 10);
-    if (limit < 1 || limit > 1000) return { error: 'limit must be between 1 and 1000' };
+    if (limit < 1 || limit > 1000)
+      return { error: 'limit must be between 1 and 1000' };
   }
 
   const rawCursor = scalar(qs['cursor']);

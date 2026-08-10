@@ -9,7 +9,7 @@
     "pgmigrations",
     "pgadmin",
     "dotenv",
-    "fastify",
+    "express",
     "nodenext",
     "outdir",
     "rootdir",

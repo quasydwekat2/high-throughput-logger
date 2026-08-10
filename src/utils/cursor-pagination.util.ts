@@ -6,7 +6,9 @@ export function encodeCursor(timestamp: string, id: string): string {
 
 export function decodeCursor(raw: string): CursorPayload | null {
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+    const parsed: unknown = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    );
 
     if (
       parsed === null ||

@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { Express } from 'express';
 import { ingestHandler } from '../handlers/logs/ingest.handler.js';
 
-export async function logsIngestRoute(app: FastifyInstance): Promise<void> {
+export function logsIngestRoute(app: Express): void {
   app.post('/logs', ingestHandler);
 }

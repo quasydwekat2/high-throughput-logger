@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { Express } from 'express';
 import { healthHandler } from '../handlers/health/health.handler.js';
 
-export async function healthRoute(app: FastifyInstance): Promise<void> {
+export function healthRoute(app: Express): void {
   app.get('/health', healthHandler);
 }

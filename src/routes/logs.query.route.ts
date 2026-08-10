@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { Express } from 'express';
 import { queryHandler } from '../handlers/logs/query.handler.js';
 
-export async function logsQueryRoute(app: FastifyInstance): Promise<void> {
+export function logsQueryRoute(app: Express): void {
   app.get('/logs', queryHandler);
 }

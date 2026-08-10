@@ -6,7 +6,7 @@ import type {
   LogLevel,
   LogAttributes,
 } from '../../types/log.types.js';
-import { encodeCursor } from '../../utils/cursor.util.js';
+import { encodeCursor } from '../../utils/cursor-pagination.util.js';
 
 export async function queryLogs(params: ParsedQueryParams): Promise<QueryLogsResponse> {
   const conditions: string[] = [];
