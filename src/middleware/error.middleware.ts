@@ -65,7 +65,8 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, next) => {
       console.error('server error:', err);
     }
     const body =
-      mapped.responseBody ?? ({ error: mapped.message } satisfies ErrorResponse);
+      mapped.responseBody ??
+      ({ error: mapped.message } satisfies ErrorResponse);
     res.status(mapped.statusCode).json(body);
     return;
   }
