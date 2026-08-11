@@ -5,8 +5,12 @@ import { pool } from "../../../../DB/client.js";
 import type { LogEntry } from "../../../../types/logs/index.js";
 import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
+const NEEDS_ESCAPE = /[\\\n\r\t]/;
+
 /** Escape a field for PostgreSQL text-format COPY (tab-delimited). */
 function escapeCopyText(value: string): string {
+  // Hot path: synthetic / typical log fields need no escaping.
+  if (!NEEDS_ESCAPE.test(value)) return value;
   return value
     .replace(/\\/g, "\\\\")
     .replace(/\n/g, "\\n")
@@ -15,20 +19,27 @@ function escapeCopyText(value: string): string {
 }
 
 function toCopyRow(log: LogEntry): string {
+  const attrsJson = JSON.stringify(log.attributes ?? {});
+
   return (
-    [
-      escapeCopyText(log.timestamp),
-      escapeCopyText(log.level),
-      escapeCopyText(log.service),
-      escapeCopyText(log.message),
-      escapeCopyText(JSON.stringify(log.attributes ?? {})),
-    ].join("\t") + "\n"
+    escapeCopyText(log.timestamp) +
+    "\t" +
+    escapeCopyText(log.level) +
+    "\t" +
+    escapeCopyText(log.service) +
+    "\t" +
+    escapeCopyText(log.message) +
+    "\t" +
+    escapeCopyText(attrsJson) +
+    "\n"
   );
 }
 
 /**
  * Stream rows into Postgres via COPY FROM STDIN.
  * Fastest option for large batches.
+ * Rows are yielded lazily so we don't allocate one giant string[] up front
+ * (matters under the 256 MB app memory limit).
  */
 export const insertWithCopy: InsertLogsStrategy = async (logs) => {
   const client = await pool.connect();
@@ -38,8 +49,14 @@ export const insertWithCopy: InsertLogsStrategy = async (logs) => {
         `COPY logs (timestamp, level, service, message, attributes) FROM STDIN`,
       ),
     );
-    const source = Readable.from(logs.map(toCopyRow));
-    await pipeline(source, copyStream);
+
+    async function* rows(): AsyncGenerator<string> {
+      for (const log of logs) {
+        yield toCopyRow(log);
+      }
+    }
+
+    await pipeline(Readable.from(rows()), copyStream);
   } finally {
     client.release();
   }

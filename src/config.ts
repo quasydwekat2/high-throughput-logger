@@ -14,7 +14,7 @@ export const config = {
 
   // Database
   databaseUrl: process.env.DATABASE_URL ?? "",
-  pgPoolMax: parseInt(process.env.PG_POOL_MAX ?? "8", 10),
+  pgPoolMax: parseInt(process.env.PG_POOL_MAX ?? "12", 10),
   pgIdleTimeoutMs: parseInt(process.env.PG_IDLE_TIMEOUT_MS ?? "30000", 10),
   pgConnectionTimeoutMs: parseInt(
     process.env.PG_CONNECTION_TIMEOUT_MS ?? "5000",
@@ -26,8 +26,13 @@ export const config = {
   // loadgenApiKey: process.env.LOADGEN_API_KEY ?? '',
 
   ingestBufferEnabled: process.env.INGEST_BUFFER_ENABLED !== "false",
-  flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? "200", 10),
-  flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? "10000", 10),
+  // Short interval so HTTP callers waiting on durable flush stay low-latency
+  // when traffic is below flushBatchSize (timer-driven coalesce).
+  flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? "50", 10),
+  // Full-size COPY batches under load; see ingest-buffer coalesce logic.
+  flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? "5000", 10),
+  // Parallel COPYs; keep below PG_POOL_MAX so query/agg still get connections.
+  flushConcurrency: parseInt(process.env.FLUSH_CONCURRENCY ?? "4", 10),
   queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? "500000", 10),
   // Max failed flush attempts for a given entry before its caller's request is failed (503).
   flushMaxRetries: parseInt(process.env.FLUSH_MAX_RETRIES ?? "5", 10),
