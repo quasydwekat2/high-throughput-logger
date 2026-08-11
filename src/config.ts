@@ -20,10 +20,10 @@ export const config = {
   // authEnabled: process.env.AUTH_ENABLED === 'true',
   // loadgenApiKey: process.env.LOADGEN_API_KEY ?? '',
 
-  retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),
-
   ingestBufferEnabled: process.env.INGEST_BUFFER_ENABLED !== 'false',
   flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? '200', 10),
   flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? '10000', 10),
   queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? '500000', 10),
+  // Max failed flush attempts for a given entry before its caller's request is failed (503).
+  flushMaxRetries: parseInt(process.env.FLUSH_MAX_RETRIES ?? '5', 10),
 };

@@ -13,6 +13,7 @@ export type {
   IngestLogsResponse,
   IngestStrategyName,
   InsertLogsStrategy,
+  QueuedEntry,
 } from './ingest.types.js';
 
 export type {

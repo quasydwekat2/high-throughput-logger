@@ -30,7 +30,8 @@ export async function ingestHandler(
   }
 
   if (config.ingestBufferEnabled) {
-    ingestBuffer.enqueue(accepted);
+    // Awaited: only respond once Postgres has durably acknowledged the write.
+    await ingestBuffer.enqueue(accepted);
   } else {
     await insertLogs(accepted);
   }

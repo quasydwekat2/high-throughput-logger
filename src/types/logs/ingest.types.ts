@@ -21,3 +21,15 @@ export type IngestStrategyName = 'copy' | 'unnest' | 'row-by-row';
 
 /** Shared contract every ingest strategy must implement. */
 export type InsertLogsStrategy = (logs: LogEntry[]) => Promise<void>;
+
+/**
+ * A log entry buffered in `IngestBuffer`, paired with the promise callbacks
+ * that settle once its containing batch is durably flushed to Postgres (or
+ * fails permanently after `FLUSH_MAX_RETRIES` attempts).
+ */
+export interface QueuedEntry {
+  log: LogEntry;
+  attempts: number;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}

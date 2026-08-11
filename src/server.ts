@@ -2,11 +2,8 @@ import { buildApp } from './app.js';
 import { config } from './config.js';
 import { pool } from './DB/client.js';
 import { ingestBuffer } from './services/ingest-buffer.js';
-import { applyRetentionConfig } from './services/retention.js';
 
 async function start(): Promise<void> {
-  await applyRetentionConfig();
-
   if (config.ingestBufferEnabled) {
     ingestBuffer.start();
   }
