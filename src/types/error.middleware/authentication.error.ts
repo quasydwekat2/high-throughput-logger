@@ -1,9 +1,9 @@
-import { AppError } from './app.error.js';
+import { AppError } from "./app.error.js";
 
 /** Missing/invalid credentials → 401 (for optional auth later) */
 export class AuthenticationError extends AppError {
-  constructor(message = 'unauthorized') {
+  constructor(message = "unauthorized") {
     super(401, message);
-    this.name = 'AuthenticationError';
+    this.name = "AuthenticationError";
   }
 }

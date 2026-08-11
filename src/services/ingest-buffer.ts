@@ -1,7 +1,7 @@
-import { config } from '../config.js';
-import { insertLogs } from '../repositories/logs/ingest.repository.js';
-import { AppError } from '../types/error.middleware/index.js';
-import type { LogEntry, QueuedEntry } from '../types/logs/index.js';
+import { config } from "../config.js";
+import { insertLogs } from "../repositories/logs/ingest.repository.js";
+import { AppError } from "../types/error.middleware/index.js";
+import type { LogEntry, QueuedEntry } from "../types/logs/index.js";
 
 /**
  * In-memory ingest buffer: enqueue validated logs, flush in bulk by size or timer.
@@ -38,11 +38,11 @@ class IngestBuffer {
     if (logs.length === 0) return Promise.resolve();
 
     if (this.closed) {
-      throw new AppError(503, 'ingest buffer is shutting down');
+      throw new AppError(503, "ingest buffer is shutting down");
     }
 
     if (this.queue.length + logs.length > config.queueMaxSize) {
-      throw new AppError(503, 'ingest buffer full');
+      throw new AppError(503, "ingest buffer full");
     }
 
     const pending = logs.map(
@@ -70,14 +70,14 @@ class IngestBuffer {
           await insertLogs(batch.map((entry) => entry.log));
           for (const entry of batch) entry.resolve();
         } catch (err) {
-          console.error('ingest buffer flush failed:', err);
+          console.error("ingest buffer flush failed:", err);
 
           const retryable: QueuedEntry[] = [];
           for (const entry of batch) {
             entry.attempts += 1;
             if (entry.attempts >= config.flushMaxRetries) {
               entry.reject(
-                new AppError(503, 'failed to durably persist log batch'),
+                new AppError(503, "failed to durably persist log batch"),
               );
             } else {
               retryable.push(entry);

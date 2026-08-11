@@ -1,6 +1,6 @@
 /** Core log domain types shared across ingest, query, and storage. */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type AttributeValue = string | number | boolean;
 
@@ -22,8 +22,8 @@ export interface StoredLogEntry extends LogEntry {
 }
 
 export const VALID_LEVELS: ReadonlySet<string> = new Set([
-  'debug',
-  'info',
-  'warn',
-  'error',
+  "debug",
+  "info",
+  "warn",
+  "error",
 ]);

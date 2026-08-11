@@ -1,7 +1,7 @@
-import { buildApp } from './app.js';
-import { config } from './config.js';
-import { pool } from './DB/client.js';
-import { ingestBuffer } from './services/ingest-buffer.js';
+import { buildApp } from "./app.js";
+import { config } from "./config.js";
+import { pool } from "./DB/client.js";
+import { ingestBuffer } from "./services/ingest-buffer.js";
 
 async function start(): Promise<void> {
   if (config.ingestBufferEnabled) {
@@ -26,11 +26,11 @@ async function start(): Promise<void> {
     });
   };
 
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 start().catch((err) => {
-  console.error('failed to start server:', err);
+  console.error("failed to start server:", err);
   process.exit(1);
 });

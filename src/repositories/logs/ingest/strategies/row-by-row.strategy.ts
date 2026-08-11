@@ -1,5 +1,5 @@
-import { pool } from '../../../../DB/client.js';
-import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
+import { pool } from "../../../../DB/client.js";
+import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
 /**
  * One INSERT per row inside a single transaction.
@@ -8,7 +8,7 @@ import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
 export const insertRowByRow: InsertLogsStrategy = async (logs) => {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     for (const log of logs) {
       await client.query(
         `INSERT INTO logs (timestamp, level, service, message, attributes)
@@ -22,9 +22,9 @@ export const insertRowByRow: InsertLogsStrategy = async (logs) => {
         ],
       );
     }
-    await client.query('COMMIT');
+    await client.query("COMMIT");
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();

@@ -1,16 +1,16 @@
-import type { Request, Response } from 'express';
-import { config } from '../../config.js';
-import { validateLogBatch } from '../../utils/batch-validation.util.js';
-import { insertLogs } from '../../repositories/logs/ingest.repository.js';
-import { ingestBuffer } from '../../services/ingest-buffer.js';
+import type { Request, Response } from "express";
+import { config } from "../../config.js";
+import { validateLogBatch } from "../../utils/batch-validation.util.js";
+import { insertLogs } from "../../repositories/logs/ingest.repository.js";
+import { ingestBuffer } from "../../services/ingest-buffer.js";
 import {
   IngestRejectedError,
   ValidationError,
-} from '../../types/error.middleware/index.js';
+} from "../../types/error.middleware/index.js";
 import type {
   IngestLogsRequest,
   IngestLogsResponse,
-} from '../../types/logs/index.js';
+} from "../../types/logs/index.js";
 
 export async function ingestHandler(
   req: Request,

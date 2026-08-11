@@ -1,17 +1,17 @@
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import { from as copyFrom } from 'pg-copy-streams';
-import { pool } from '../../../../DB/client.js';
-import type { LogEntry } from '../../../../types/logs/index.js';
-import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { from as copyFrom } from "pg-copy-streams";
+import { pool } from "../../../../DB/client.js";
+import type { LogEntry } from "../../../../types/logs/index.js";
+import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
 /** Escape a field for PostgreSQL text-format COPY (tab-delimited). */
 function escapeCopyText(value: string): string {
   return value
-    .replace(/\\/g, '\\\\')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t');
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
 }
 
 function toCopyRow(log: LogEntry): string {
@@ -22,7 +22,7 @@ function toCopyRow(log: LogEntry): string {
       escapeCopyText(log.service),
       escapeCopyText(log.message),
       escapeCopyText(JSON.stringify(log.attributes ?? {})),
-    ].join('\t') + '\n'
+    ].join("\t") + "\n"
   );
 }
 

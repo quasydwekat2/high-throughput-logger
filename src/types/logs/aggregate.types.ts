@@ -1,19 +1,19 @@
-import type { LogLevel } from './domain.types.js';
+import type { LogLevel } from "./domain.types.js";
 
 /** GET /logs/aggregate — bucketed aggregation contracts. */
 
-export type BucketSize = '1m' | '5m' | '1h' | '1d';
-export type GroupByOption = 'service' | 'level';
+export type BucketSize = "1m" | "5m" | "1h" | "1d";
+export type GroupByOption = "service" | "level";
 
 export const VALID_BUCKETS: ReadonlySet<string> = new Set([
-  '1m',
-  '5m',
-  '1h',
-  '1d',
+  "1m",
+  "5m",
+  "1h",
+  "1d",
 ]);
 export const VALID_GROUP_BY: ReadonlySet<string> = new Set([
-  'service',
-  'level',
+  "service",
+  "level",
 ]);
 
 /**
