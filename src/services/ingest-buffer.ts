@@ -11,18 +11,21 @@ import type { LogEntry, QueuedEntry } from "../types/logs/index.js";
  * acknowledged the write. Callers (the ingest handler) must await it before
  * responding 200, so a process crash before flush never results in a false ack.
  * Batching still buys throughput: many concurrent callers can share one flush.
+ *
+ * Multiple COPY flushes run in parallel (up to `flushConcurrency`) so a single
+ * slow write does not stall the whole ingest pipeline under load.
  */
 class IngestBuffer {
   private queue: QueuedEntry[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
-  private flushing = false;
+  private inFlight = 0;
   private closed = false;
 
   start(): void {
     if (this.flushTimer !== null) return;
 
     this.flushTimer = setInterval(() => {
-      void this.flush();
+      this.scheduleFlush();
     }, config.flushIntervalMs);
 
     // Don't keep the process alive just for the flush timer.
@@ -45,53 +48,94 @@ class IngestBuffer {
       throw new AppError(503, "ingest buffer full");
     }
 
-    const pending = logs.map(
-      (log) =>
-        new Promise<void>((resolve, reject) => {
-          this.queue.push({ log, attempts: 0, resolve, reject });
-        }),
-    );
+    // One promise per HTTP batch (not per log) — less GC under 0.5 CPU.
+    return new Promise<void>((resolve, reject) => {
+      let remaining = logs.length;
+      let settled = false;
 
-    if (this.queue.length >= config.flushBatchSize) {
-      void this.flush();
-    }
+      const onResolve = (): void => {
+        remaining -= 1;
+        if (remaining === 0 && !settled) {
+          settled = true;
+          resolve();
+        }
+      };
 
-    return Promise.all(pending).then(() => undefined);
+      const onReject = (err: unknown): void => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      };
+
+      for (const log of logs) {
+        this.queue.push({
+          log,
+          attempts: 0,
+          resolve: onResolve,
+          reject: onReject,
+        });
+      }
+
+      // Only flush early once we have a full COPY batch. Otherwise let the
+      // interval coalesce concurrent requests — eager per-request flushes
+      // produce tiny COPYs and kill durable-ingest throughput.
+      if (this.queue.length >= config.flushBatchSize) {
+        this.scheduleFlush();
+      }
+    });
   }
 
-  async flush(): Promise<void> {
-    if (this.flushing || this.queue.length === 0) return;
+  /** Kick off as many parallel flush workers as concurrency allows. */
+  private scheduleFlush(): void {
+    while (
+      this.inFlight < config.flushConcurrency &&
+      this.queue.length > 0
+    ) {
+      void this.flushOne();
+    }
+  }
 
-    this.flushing = true;
+  private async flushOne(): Promise<void> {
+    if (this.queue.length === 0) return;
+    if (this.inFlight >= config.flushConcurrency) return;
+
+    const batch = this.queue.splice(0, config.flushBatchSize);
+    if (batch.length === 0) return;
+
+    this.inFlight += 1;
     try {
-      while (this.queue.length > 0) {
-        const batch = this.queue.splice(0, config.flushBatchSize);
-        try {
-          await insertLogs(batch.map((entry) => entry.log));
-          for (const entry of batch) entry.resolve();
-        } catch (err) {
-          console.error("ingest buffer flush failed:", err);
+      await insertLogs(batch.map((entry) => entry.log));
+      for (const entry of batch) entry.resolve();
+    } catch (err) {
+      console.error("ingest buffer flush failed:", err);
 
-          const retryable: QueuedEntry[] = [];
-          for (const entry of batch) {
-            entry.attempts += 1;
-            if (entry.attempts >= config.flushMaxRetries) {
-              entry.reject(
-                new AppError(503, "failed to durably persist log batch"),
-              );
-            } else {
-              retryable.push(entry);
-            }
-          }
-
-          // Put still-retryable entries back for the next flush (timer-driven) and
-          // stop this pass — an immediate retry against a failing DB rarely helps.
-          this.queue.unshift(...retryable);
-          break;
+      const retryable: QueuedEntry[] = [];
+      for (const entry of batch) {
+        entry.attempts += 1;
+        if (entry.attempts >= config.flushMaxRetries) {
+          entry.reject(
+            new AppError(503, "failed to durably persist log batch"),
+          );
+        } else {
+          retryable.push(entry);
         }
       }
+
+      // Put still-retryable entries back; timer / next enqueue will retry.
+      this.queue.unshift(...retryable);
     } finally {
-      this.flushing = false;
+      this.inFlight -= 1;
+      this.scheduleFlush();
+    }
+  }
+
+  /** Drain helper used by stop() — waits until queue is empty and no flushes run. */
+  async flush(): Promise<void> {
+    this.scheduleFlush();
+    while (this.queue.length > 0 || this.inFlight > 0) {
+      this.scheduleFlush();
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
 
@@ -102,10 +146,6 @@ class IngestBuffer {
     if (this.flushTimer !== null) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
-    }
-
-    while (this.flushing) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
     await this.flush();

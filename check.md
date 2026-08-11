@@ -147,13 +147,13 @@ Measured via `load-test/run.ts` (own load test, full run: 1,000,000 logs).
 
 | Target                                                                                   | Status         | Measured                                                                   |
 | ---------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------- |
-| ≥ 15,000 logs/sec sustained                                                              | `[x]` PASS     | 15,668/s sustained (15,662/s overall)                                      |
+| ≥ 15,000 logs/sec sustained                                                              | `[x]` PASS     | 15,270/s sustained (15,291/s overall)                                      |
 | No drops / crashes under load                                                            | `[x]` PASS     | fail_batches=0, crashes=0                                                  |
-| Primary aggregation p95 < 1s                                                             | `[x]` PASS     | p95=161.9ms (p50=4.3ms, p99=344.9ms, max=344.9ms, n=78)                    |
-| Query OK while ingesting                                                                 | `[x]` PASS     | ok=31, fail=0                                                              |
+| Primary aggregation p95 < 1s                                                             | `[x]` PASS     | p95=366.9ms (p50=16.0ms, p99=1869.6ms, max=1869.6ms, n=80)                 |
+| Query OK while ingesting                                                                 | `[x]` PASS     | ok=30, fail=0                                                              |
 | ~1,000,000 rows (~1 month of data)                                                       | `[x]` PASS     | accepted=1,000,000, rejected=0                                             |
-| New data queryable < 20s                                                                 | `[x]` PASS     | 3,217.6ms                                                                  |
-| 1 aggregation req/sec during ingest                                                      | `[x]` PASS     | agg_ok=78 over 63.8s duration                                              |
+| New data queryable < 20s                                                                 | `[x]` PASS     | 330.9ms                                                                    |
+| 1 aggregation req/sec during ingest                                                      | `[x]` PASS     | agg_ok=80 over 65.4s duration                                              |
 | Own load tests before submit                                                             | `[x]` done     | `npx tsx load-test/run.ts` — all 7 checks PASS                             |
 | Submit / tune via [https://loadgen.foothilltech.net/](https://loadgen.foothilltech.net/) | `[ ]` not done | still required — external portal submission is separate from own load test |
 
@@ -162,18 +162,19 @@ Measured via `load-test/run.ts` (own load test, full run: 1,000,000 logs).
 
 ### Full run details (reference)
 
-- Duration: 63.8s · Batches ok/fail: 2000/0
-- Ingest latency: p50=4.4ms · p95=140.4ms · p99=254.1ms · max=450.1ms
-- Status codes: `{"ingest:200":2000,"agg:200":63,"query:200":31}`
+- Duration: 65.4s · Batches ok/fail: 2000/0
+- Ingest latency: p50=31.2ms · p95=1140.2ms · p99=2141.4ms · max=2623.0ms
+- Status codes: `{"ingest:200":2000,"agg:200":65,"query:200":30}`
 
 A correct solution that misses these is **not complete**. All own-load-test targets now pass; external portal submission (loadgen.foothilltech.net) is still outstanding.
 
 ### Implementation already helping performance
 
 - [x] Bulk insert (COPY default; unnest / row-by-row available)
-- [x] Partitioning + indexes aligned to query patterns
+- [x] Partitioning + indexes aligned to query patterns (no write-heavy message trgm GIN)
 - [x] Connection pool tuning
-- [x] Ingest buffer (flush by size/timer)
+- [x] Ingest buffer (flush by size/timer, parallel COPY flushes)
+- [x] Postgres write tuning (`synchronous_commit=off`, WAL/GIN pending list)
 
 ---
 

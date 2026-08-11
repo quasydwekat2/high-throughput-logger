@@ -18,6 +18,6 @@ CREATE INDEX IF NOT EXISTS idx_logs_level_ts
 CREATE INDEX IF NOT EXISTS idx_logs_attributes_path
     ON logs USING GIN (attributes jsonb_path_ops);
 
--- 5. Fast Substring Search for queries like q=declined (%ILIKE%)
-CREATE INDEX IF NOT EXISTS idx_logs_message_trgm
-    ON logs USING GIN (message gin_trgm_ops);
+-- NOTE: message gin_trgm index intentionally omitted — GIN trgm maintenance
+-- dominated ingest CPU under the 0.5 CPU / 1 GB Postgres limits and blocked
+-- the ≥15k/s target. `q` still works via ILIKE + partition pruning.
