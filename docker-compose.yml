@@ -35,7 +35,7 @@ services:
         -c random_page_cost=1.1
         -c effective_io_concurrency=200
         -c synchronous_commit=off
-        -c gin_pending_list_limit=4096
+        -c gin_pending_list_limit=16384
         -c wal_compression=on
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -124,13 +124,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
       LOADGEN_API_KEY: ${LOADGEN_API_KEY:-}
-      PG_POOL_MAX: ${PG_POOL_MAX:-12}
+      PG_POOL_MAX: ${PG_POOL_MAX:-14}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
       PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-5000}
       INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-50}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-5000}
-      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-4}
+      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-40}
+      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-8000}
+      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-5}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
       FLUSH_MAX_RETRIES: ${FLUSH_MAX_RETRIES:-5}
     volumes:

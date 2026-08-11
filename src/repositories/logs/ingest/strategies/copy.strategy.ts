@@ -50,10 +50,21 @@ export const insertWithCopy: InsertLogsStrategy = async (logs) => {
       ),
     );
 
+    // Yield multi-row chunks to cut stream overhead vs one yield per log.
     async function* rows(): AsyncGenerator<string> {
+      const chunkSize = 256;
+      let buf = "";
+      let n = 0;
       for (const log of logs) {
-        yield toCopyRow(log);
+        buf += toCopyRow(log);
+        n += 1;
+        if (n >= chunkSize) {
+          yield buf;
+          buf = "";
+          n = 0;
+        }
       }
+      if (n > 0) yield buf;
     }
 
     await pipeline(Readable.from(rows()), copyStream);

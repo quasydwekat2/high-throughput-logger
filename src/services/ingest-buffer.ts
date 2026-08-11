@@ -48,21 +48,42 @@ class IngestBuffer {
       throw new AppError(503, "ingest buffer full");
     }
 
-    const pending = logs.map(
-      (log) =>
-        new Promise<void>((resolve, reject) => {
-          this.queue.push({ log, attempts: 0, resolve, reject });
-        }),
-    );
+    // One promise per HTTP batch (not per log) — less GC under 0.5 CPU.
+    return new Promise<void>((resolve, reject) => {
+      let remaining = logs.length;
+      let settled = false;
 
-    // Only flush early once we have a full COPY batch. Otherwise let the
-    // interval coalesce concurrent requests — eager per-request flushes
-    // produce tiny COPYs and kill durable-ingest throughput.
-    if (this.queue.length >= config.flushBatchSize) {
-      this.scheduleFlush();
-    }
+      const onResolve = (): void => {
+        remaining -= 1;
+        if (remaining === 0 && !settled) {
+          settled = true;
+          resolve();
+        }
+      };
 
-    return Promise.all(pending).then(() => undefined);
+      const onReject = (err: unknown): void => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      };
+
+      for (const log of logs) {
+        this.queue.push({
+          log,
+          attempts: 0,
+          resolve: onResolve,
+          reject: onReject,
+        });
+      }
+
+      // Only flush early once we have a full COPY batch. Otherwise let the
+      // interval coalesce concurrent requests — eager per-request flushes
+      // produce tiny COPYs and kill durable-ingest throughput.
+      if (this.queue.length >= config.flushBatchSize) {
+        this.scheduleFlush();
+      }
+    });
   }
 
   /** Kick off as many parallel flush workers as concurrency allows. */
