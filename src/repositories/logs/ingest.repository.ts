@@ -1,5 +1,5 @@
-import type { LogEntry } from '../../types/logs/index.js';
-import { getIngestStrategy } from './ingest/select-strategy.js';
+import type { LogEntry } from "../../types/logs/index.js";
+import { getIngestStrategy } from "./ingest/select-strategy.js";
 
 /**
  * Bulk-inserts a batch of validated log entries.

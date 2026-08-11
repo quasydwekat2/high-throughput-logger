@@ -1,10 +1,10 @@
-import type { Request, Response } from 'express';
-import { parseAggregateParams } from '../../utils/query-validation.util.js';
-import { aggregateLogs } from '../../repositories/logs/aggregate.repository.js';
+import type { Request, Response } from "express";
+import { parseAggregateParams } from "../../utils/query-validation.util.js";
+import { aggregateLogs } from "../../repositories/logs/aggregate.repository.js";
 import type {
   AggregateLogsParams,
   AggregateLogsResponse,
-} from '../../types/logs/index.js';
+} from "../../types/logs/index.js";
 
 export async function aggregateHandler(
   req: Request,

@@ -1,20 +1,20 @@
-import { pool } from '../../DB/client.js';
+import { pool } from "../../DB/client.js";
 import type {
   ParsedAggregateParams,
   AggregateBucket,
   BucketSize,
-} from '../../types/logs/index.js';
+} from "../../types/logs/index.js";
 
 // Maps bucket size to the SQL expression that truncates a timestamp to that bucket
 function bucketExpr(size: BucketSize): string {
   switch (size) {
-    case '1m':
+    case "1m":
       return `date_trunc('minute', timestamp)`;
-    case '1h':
+    case "1h":
       return `date_trunc('hour', timestamp)`;
-    case '1d':
+    case "1d":
       return `date_trunc('day', timestamp)`;
-    case '5m':
+    case "5m":
       // floor(epoch / 300) * 300 gives the start of each 5-minute window
       return `to_timestamp(floor(extract(epoch from timestamp) / 300) * 300)`;
   }
@@ -24,8 +24,8 @@ export async function aggregateLogs(
   params: ParsedAggregateParams,
 ): Promise<AggregateBucket[]> {
   const conditions: string[] = [
-    'timestamp >= $1::timestamptz',
-    'timestamp < $2::timestamptz',
+    "timestamp >= $1::timestamptz",
+    "timestamp < $2::timestamptz",
   ];
   const values: unknown[] = [params.since, params.until];
   let n = 3;
@@ -48,7 +48,7 @@ export async function aggregateLogs(
   }
 
   const bucket = bucketExpr(params.bucket);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  const where = `WHERE ${conditions.join(" AND ")}`;
 
   let sql: string;
 

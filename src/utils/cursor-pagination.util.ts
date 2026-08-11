@@ -1,22 +1,22 @@
-import type { CursorPayload } from '../types/logs/index.js';
+import type { CursorPayload } from "../types/logs/index.js";
 
 export function encodeCursor(timestamp: string, id: string): string {
-  return Buffer.from(JSON.stringify({ timestamp, id })).toString('base64url');
+  return Buffer.from(JSON.stringify({ timestamp, id })).toString("base64url");
 }
 
 export function decodeCursor(raw: string): CursorPayload | null {
   try {
     const parsed: unknown = JSON.parse(
-      Buffer.from(raw, 'base64url').toString('utf8'),
+      Buffer.from(raw, "base64url").toString("utf8"),
     );
 
     if (
       parsed === null ||
-      typeof parsed !== 'object' ||
-      !('timestamp' in parsed) ||
-      !('id' in parsed) ||
-      typeof (parsed as Record<string, unknown>).timestamp !== 'string' ||
-      typeof (parsed as Record<string, unknown>).id !== 'string'
+      typeof parsed !== "object" ||
+      !("timestamp" in parsed) ||
+      !("id" in parsed) ||
+      typeof (parsed as Record<string, unknown>).timestamp !== "string" ||
+      typeof (parsed as Record<string, unknown>).id !== "string"
     ) {
       return null;
     }

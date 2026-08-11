@@ -1,7 +1,7 @@
-import type { Request, Response } from 'express';
-import { pool } from '../../DB/client.js';
-import { ServiceUnavailableError } from '../../types/error.middleware/index.js';
-import type { HealthStatusResponse } from '../../types/http/health.types.js';
+import type { Request, Response } from "express";
+import { pool } from "../../DB/client.js";
+import { ServiceUnavailableError } from "../../types/error.middleware/index.js";
+import type { HealthStatusResponse } from "../../types/http/health.types.js";
 
 /**
  * Must match how many migrations node-pg-migrate has applied
@@ -16,7 +16,7 @@ export async function healthHandler(
 ): Promise<void> {
   try {
     const result = await pool.query<{ count: number }>(
-      'SELECT COUNT(*)::int AS count FROM pgmigrations',
+      "SELECT COUNT(*)::int AS count FROM pgmigrations",
     );
     const applied = result.rows[0]?.count ?? 0;
 
@@ -24,7 +24,7 @@ export async function healthHandler(
       throw new ServiceUnavailableError();
     }
 
-    const body: HealthStatusResponse = { status: 'ok' };
+    const body: HealthStatusResponse = { status: "ok" };
     res.status(200).json(body);
   } catch (err) {
     // Health contract: any DB/readiness failure → 503 { status: unavailable }

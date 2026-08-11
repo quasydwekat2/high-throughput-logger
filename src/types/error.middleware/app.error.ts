@@ -26,7 +26,7 @@ export class AppError extends Error {
 
   constructor(statusCode: number, message: string, responseBody?: unknown) {
     super(message);
-    this.name = 'AppError';
+    this.name = "AppError";
     this.statusCode = statusCode;
     this.responseBody = responseBody;
   }

@@ -1,21 +1,21 @@
-import type { ErrorRequestHandler } from 'express';
-import { DatabaseError as PgDatabaseError } from 'pg';
-import { AppError, DatabaseError } from '../types/error.middleware/index.js';
-import type { ErrorResponse } from '../types/http/error-response.types.js';
+import type { ErrorRequestHandler } from "express";
+import { DatabaseError as PgDatabaseError } from "pg";
+import { AppError, DatabaseError } from "../types/error.middleware/index.js";
+import type { ErrorResponse } from "../types/http/error-response.types.js";
 
 function isMalformedJsonError(err: unknown): boolean {
   if (!(err instanceof SyntaxError)) return false;
   const e = err as SyntaxError & { status?: number; type?: string };
-  return e.status === 400 || e.type === 'entity.parse.failed' || 'body' in e;
+  return e.status === 400 || e.type === "entity.parse.failed" || "body" in e;
 }
 
 function isPayloadTooLargeError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const e = err as Error & { type?: string; status?: number };
   return (
-    e.type === 'entity.too.large' ||
+    e.type === "entity.too.large" ||
     e.status === 413 ||
-    e.name === 'PayloadTooLargeError'
+    e.name === "PayloadTooLargeError"
   );
 }
 
@@ -23,11 +23,11 @@ function toAppError(err: unknown): AppError | null {
   if (err instanceof AppError) return err;
 
   if (isMalformedJsonError(err)) {
-    return new AppError(400, 'malformed JSON body');
+    return new AppError(400, "malformed JSON body");
   }
 
   if (isPayloadTooLargeError(err)) {
-    return new AppError(413, 'request body too large');
+    return new AppError(413, "request body too large");
   }
 
   if (err instanceof PgDatabaseError) {
@@ -62,7 +62,7 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, next) => {
 
   if (mapped) {
     if (mapped.statusCode >= 500) {
-      console.error('server error:', err);
+      console.error("server error:", err);
     }
     const body =
       mapped.responseBody ??
@@ -71,7 +71,7 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, next) => {
     return;
   }
 
-  console.error('unhandled error:', err);
-  const body: ErrorResponse = { error: 'internal server error' };
+  console.error("unhandled error:", err);
+  const body: ErrorResponse = { error: "internal server error" };
   res.status(500).json(body);
 };

@@ -1,4 +1,4 @@
-import type { LogLevel, StoredLogEntry } from './domain.types.js';
+import type { LogLevel, StoredLogEntry } from "./domain.types.js";
 
 /** GET /logs — query-string, cursor pagination, and parsed params. */
 

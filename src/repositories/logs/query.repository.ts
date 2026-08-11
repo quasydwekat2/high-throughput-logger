@@ -1,12 +1,12 @@
-import { pool } from '../../DB/client.js';
+import { pool } from "../../DB/client.js";
 import type {
   ParsedQueryParams,
   StoredLogEntry,
   QueryLogsResponse,
   LogLevel,
   LogAttributes,
-} from '../../types/logs/index.js';
-import { encodeCursor } from '../../utils/cursor-pagination.util.js';
+} from "../../types/logs/index.js";
+import { encodeCursor } from "../../utils/cursor-pagination.util.js";
 
 export async function queryLogs(
   params: ParsedQueryParams,
@@ -51,7 +51,7 @@ export async function queryLogs(
   }
 
   const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Fetch one extra row to determine whether a next page exists
   const fetchLimit = params.limit + 1;

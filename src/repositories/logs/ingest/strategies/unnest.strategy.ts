@@ -1,5 +1,5 @@
-import { pool } from '../../../../DB/client.js';
-import type { InsertLogsStrategy } from '../../../../types/logs/index.js';
+import { pool } from "../../../../DB/client.js";
+import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
 /**
  * Single INSERT … SELECT * FROM unnest(...) with typed arrays.

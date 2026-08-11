@@ -24,7 +24,7 @@ Obligatory requirements only. Status: `[x]` done · `[~]` partial · `[ ]` not d
 
 - [x] **Ingestion** — API accepts individual or batched structured logs, validates, stores efficiently
 - [x] **Querying** — filter by service, level, time, attributes, message; aggregate into time buckets / group dimensions
-- [x] **Retention** — Partman drops expired partitions; `RETENTION_DAYS` (default 30) from env/config applied to `partman.part_config` at app startup (BGW, no app cron)
+- [x] **Retention** — Partman drops expired partitions; retention fixed at 30 days directly in `partman.part_config` via migration 002 (BGW, no app cron, no app-layer config)
 
 
 
@@ -132,7 +132,7 @@ Even with no optional features, the default must satisfy:
 - [x] Plain `docker compose up` (no env file / args / manual setup) serves all four endpoints exactly as specified
 - [x] Accepts **unauthenticated** requests on all four
 - [x] No rate limit / quota / tenancy that loadgen could hit by default
-- [x] Never respond 200 to a batch not durably accepted
+- [x] Never respond 200 to a batch not durably accepted — ingest handler now awaits `ingestBuffer.enqueue()`, which only resolves once Postgres acknowledges the COPY (see #27 fix)
 
 > Auth / rate limiting / multi-tenancy are **optional**. If not implemented, ignore those sections. If implemented later, they must stay off by default and follow the auth contract.
 
@@ -186,7 +186,7 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 | ---------------------- | ------ | ------------------------------------------------------------------------------------------- |
 | Architecture           | `[~]`  | Schema, attributes JSONB, data flow, structure in place; document in README                 |
 | Performance            | `[x]`  | Own load test PASSES all 7 targets (see §6); still need portal submission + README write-up |
-| Retention              | `[x]`  | Partman DROP partitions; `RETENTION_DAYS` synced at startup                                 |
+| Retention              | `[x]`  | Partman DROP partitions; fixed 30-day retention, fully Postgres-layer (no app involvement)  |
 | Reliability            | `[x]`  | Validation, errors, edge cases largely covered                                              |
 | Code quality           | `[x]`  | Typed TS, clear layers                                                                      |
 | Security               | `[x]`  | Parameterized queries                                                                       |
@@ -241,11 +241,11 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 ## Suggested next work order
 
 1. Fix `attr.<key>` string-equality if loadgen uses numeric/boolean attrs.
-2. Fix ingest-buffer durability: handler returns 200 right after `enqueue()`, before the batch is actually flushed to Postgres — violates "never respond 200 to a batch not durably accepted" if the process crashes before flush.
+2. ~~Fix ingest-buffer durability~~ — **done** (#27): `enqueue()` now returns a promise per-entry, resolved only after that entry's batch is COPY'd and acknowledged by Postgres; handler awaits it before responding 200. Failed flushes retry (via the flush timer) up to `FLUSH_MAX_RETRIES`, then reject with 503.
 3. Write README (all §8 sections), including retention strategy (`RETENTION_DAYS` + Partman) and measured load-test numbers from §6.
 4. Add Vitest smoke/contract tests + GitHub Actions CI.
 5. ~~Run load tests; tune; document numbers~~ — **done**, see §6.
-6. ~~Make retention configurable~~ — **done** (`RETENTION_DAYS` → Partman at startup).
+6. ~~Make retention configurable~~ — **reverted**: retention is purely a Postgres/pg_partman concern (fixed 30 days in migration 002); removed the app-layer `retention.ts` sync since raw SQL migrations already fully own it and app involvement added no value.
 7. Submit to [https://loadgen.foothilltech.net/](https://loadgen.foothilltech.net/) and iterate.
 8. Record ~5 min demo video.
 9. Submit final project.
@@ -259,7 +259,7 @@ A correct solution that misses these is **not complete**. All own-load-test targ
 
 | Area                 | Rough status                                                                  |
 | -------------------- | ----------------------------------------------------------------------------- |
-| Core API             | ~95% (attr string match + ingest-buffer durability still open)                |
+| Core API             | ~97% (ingest-buffer durability fixed; attr string match still open)          |
 | Retention            | **Done** (Partman + `RETENTION_DAYS`)                                         |
 | Docker / infra       | **Done**                                                                      |
 | Performance proof    | **Done** (own load test, all 7 targets PASS); portal submission still pending |

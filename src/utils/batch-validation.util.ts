@@ -2,8 +2,8 @@ import type {
   AttributeValue,
   IngestionError,
   LogEntry,
-} from '../types/logs/index.js';
-import { VALID_LEVELS } from '../types/logs/index.js';
+} from "../types/logs/index.js";
+import { VALID_LEVELS } from "../types/logs/index.js";
 
 const MAX_FUTURE_MS = 5 * 60 * 1000;
 
@@ -18,24 +18,24 @@ export interface ValidationResult {
 
 function isAttributeValue(value: unknown): value is AttributeValue {
   return (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
   );
 }
 
 function validateAttributes(attributes: unknown): string | null {
   if (attributes === undefined || attributes === null) return null;
 
-  if (typeof attributes !== 'object' || Array.isArray(attributes)) {
-    return 'attributes must be a flat object';
+  if (typeof attributes !== "object" || Array.isArray(attributes)) {
+    return "attributes must be a flat object";
   }
 
   const entries = Object.values(attributes as Record<string, unknown>);
   for (let i = 0; i < entries.length; i++) {
     const v = entries[i];
     if (!isAttributeValue(v)) {
-      return 'attributes values must be strings, numbers, or booleans (no nested objects or arrays)';
+      return "attributes values must be strings, numbers, or booleans (no nested objects or arrays)";
     }
   }
 
@@ -53,49 +53,49 @@ export function validateLogBatch(logs: unknown[]): ValidationResult {
 
     // --- timestamp ---
     const ts = log.timestamp;
-    if (typeof ts !== 'string' || !ISO_8601_RE.test(ts)) {
+    if (typeof ts !== "string" || !ISO_8601_RE.test(ts)) {
       rejected.push({
         index: i,
-        reason: 'timestamp must be a valid ISO 8601 string',
+        reason: "timestamp must be a valid ISO 8601 string",
       });
       continue;
     }
     const tsMs = Date.parse(ts);
     if (Number.isNaN(tsMs)) {
-      rejected.push({ index: i, reason: 'timestamp is not a parseable date' });
+      rejected.push({ index: i, reason: "timestamp is not a parseable date" });
       continue;
     }
     if (tsMs > ceiling) {
       rejected.push({
         index: i,
-        reason: 'timestamp must not be more than 5 minutes in the future',
+        reason: "timestamp must not be more than 5 minutes in the future",
       });
       continue;
     }
 
     // --- level ---
-    if (typeof log.level !== 'string' || !VALID_LEVELS.has(log.level)) {
+    if (typeof log.level !== "string" || !VALID_LEVELS.has(log.level)) {
       rejected.push({
         index: i,
-        reason: 'level must be one of: debug, info, warn, error',
+        reason: "level must be one of: debug, info, warn, error",
       });
       continue;
     }
 
     // --- service ---
-    if (typeof log.service !== 'string' || log.service.length === 0) {
-      rejected.push({ index: i, reason: 'service must be a non-empty string' });
+    if (typeof log.service !== "string" || log.service.length === 0) {
+      rejected.push({ index: i, reason: "service must be a non-empty string" });
       continue;
     }
 
     // --- message ---
-    if (typeof log.message !== 'string' || log.message.length === 0) {
-      rejected.push({ index: i, reason: 'message must be a non-empty string' });
+    if (typeof log.message !== "string" || log.message.length === 0) {
+      rejected.push({ index: i, reason: "message must be a non-empty string" });
       continue;
     }
 
     // --- attributes (optional) ---
-    if ('attributes' in log) {
+    if ("attributes" in log) {
       const attrError = validateAttributes(log.attributes);
       if (attrError !== null) {
         rejected.push({ index: i, reason: attrError });
@@ -105,11 +105,11 @@ export function validateLogBatch(logs: unknown[]): ValidationResult {
 
     accepted.push({
       timestamp: ts,
-      level: log.level as LogEntry['level'],
+      level: log.level as LogEntry["level"],
       service: log.service,
       message: log.message,
       ...(log.attributes !== undefined
-        ? { attributes: log.attributes as LogEntry['attributes'] }
+        ? { attributes: log.attributes as LogEntry["attributes"] }
         : {}),
     });
   }
