@@ -7,8 +7,8 @@ import { insertWithUnnest } from "./strategies/unnest.strategy.js";
 import { insertRowByRow } from "./strategies/row-by-row.strategy.js";
 
 /**
- * Change this one line to switch the ingest strategy:
- *   'copy'       — COPY FROM STDIN (default, fastest)
+ * Active ingest strategy. Change this one line to switch:
+ *   'copy'       — COPY FROM STDIN (default, fastest) ← currently active
  *   'unnest'     — INSERT … unnest()
  *   'row-by-row' — one INSERT per row
  */

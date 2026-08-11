@@ -1,4 +1,4 @@
-import { pool } from "../../DB/client.js";
+import { readPool } from "../../DB/client.js";
 import type {
   ParsedAggregateParams,
   AggregateBucket,
@@ -78,7 +78,7 @@ export async function aggregateLogs(
     `;
   }
 
-  const result = await pool.query<{
+  const result = await readPool.query<{
     start: Date;
     group: string | null;
     count: number;

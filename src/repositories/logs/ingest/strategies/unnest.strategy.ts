@@ -1,4 +1,4 @@
-import { pool } from "../../../../DB/client.js";
+import { writePool } from "../../../../DB/client.js";
 import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
 /**
@@ -12,7 +12,7 @@ export const insertWithUnnest: InsertLogsStrategy = async (logs) => {
   const messages = logs.map((l) => l.message);
   const attributes = logs.map((l) => JSON.stringify(l.attributes ?? {}));
 
-  await pool.query(
+  await writePool.query(
     `INSERT INTO logs (timestamp, level, service, message, attributes)
      SELECT * FROM unnest(
        $1::timestamptz[],

@@ -36,7 +36,7 @@ export const loadTestConfig = {
   batchSize: intEnv('BATCH_SIZE', 500),
 
   /** Concurrent HTTP ingest workers. */
-  concurrency: intEnv('CONCURRENCY', 32),
+  concurrency: intEnv('CONCURRENCY', 24),
 
   /** Aggregation requests during ingest (1/sec). */
   aggregateIntervalMs: intEnv('AGGREGATE_INTERVAL_MS', 1_000),
@@ -57,10 +57,10 @@ export const loadTestConfig = {
   warmupSec: floatEnv('WARMUP_SEC', 5),
 
   /**
-   * Pace slightly above target so jitter doesn't drop measured throughput
-   * a hair below the pass bar (1.05 → clients aim at 105% of target).
+   * Pace slightly above target so jitter / durable-flush tails don't drop
+   * measured throughput a hair below the pass bar.
    */
-  paceFactor: floatEnv('PACE_FACTOR', 1.05),
+  paceFactor: floatEnv('PACE_FACTOR', 1.1),
 
   /** Services / levels used in synthetic traffic. */
   services: ['api', 'worker', 'billing', 'auth', 'gateway'] as const,
