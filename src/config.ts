@@ -45,7 +45,7 @@ export const config = {
   // Large COPY batches for ≥15k/s under 0.5 CPU app / 1 CPU Postgres.
   flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? '8000', 10),
   // Parallel COPYs; must stay ≤ pgWritePoolMax − 1.
-  flushConcurrency: parseInt(process.env.FLUSH_CONCURRENCY ?? '4', 10),
+  flushConcurrency: parseInt(process.env.FLUSH_CONCURRENCY ?? '5', 10),
   queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? '500000', 10),
   // Max failed flush attempts for a given entry before its caller's request is failed (503).
   flushMaxRetries: parseInt(process.env.FLUSH_MAX_RETRIES ?? '5', 10),

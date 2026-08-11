@@ -23,7 +23,30 @@ docker compose up --build -d
 
 ## Run
 
-From the repo root:
+### Recommended: separate Docker container (accurate)
+
+App stays under 0.5 CPU; load-test runs in its **own** container with no resource
+cap, then **exits and is removed** (`--rm`).
+
+```bash
+# stack must already be up
+docker compose up -d
+
+# optional: clean slate before a full 1M run
+docker exec ht-logger-postgres psql -U postgres -d log_ingestion_db -c "TRUNCATE logs;"
+
+# one-shot load-test container
+npm run load-test:docker
+# same as: docker compose --profile load-test run --rm load-test
+```
+
+Smoke (100k) in Docker:
+
+```bash
+npm run load-test:docker:smoke
+```
+
+### From host (also fine — do NOT run inside `ht-logger-app`)
 
 ```bash
 npm run load-test
@@ -35,7 +58,7 @@ Or directly:
 npx tsx load-test/run.ts
 ```
 
-### Quick smoke (smaller / faster)
+### Quick smoke (host)
 
 ```bash
 npm run load-test:smoke
@@ -44,7 +67,7 @@ npm run load-test:smoke
 ### Full checklist run (~1M rows)
 
 ```bash
-TOTAL_LOGS=1000000 TARGET_LOGS_PER_SEC=15000 BATCH_SIZE=500 CONCURRENCY=32 npm run load-test
+TOTAL_LOGS=1000000 TARGET_LOGS_PER_SEC=15000 BATCH_SIZE=500 CONCURRENCY=24 npm run load-test
 ```
 
 ## Environment knobs
@@ -55,7 +78,7 @@ TOTAL_LOGS=1000000 TARGET_LOGS_PER_SEC=15000 BATCH_SIZE=500 CONCURRENCY=32 npm r
 | `TARGET_LOGS_PER_SEC` | `15000` | Sustained ingest target |
 | `TOTAL_LOGS` | `1000000` | Rows to send |
 | `BATCH_SIZE` | `500` | Logs per `POST /logs` |
-| `CONCURRENCY` | `32` | Parallel ingest workers |
+| `CONCURRENCY` | `24` | Parallel ingest workers |
 | `AGGREGATE_INTERVAL_MS` | `1000` | Aggregation cadence during ingest |
 | `QUERY_INTERVAL_MS` | `2000` | Query cadence during ingest |
 | `VISIBILITY_DEADLINE_MS` | `20000` | Max wait for new data to appear |

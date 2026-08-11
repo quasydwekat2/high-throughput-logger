@@ -132,7 +132,7 @@ services:
       INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
       FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-40}
       FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-8000}
-      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-4}
+      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-5}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
       FLUSH_MAX_RETRIES: ${FLUSH_MAX_RETRIES:-5}
     volumes:
@@ -153,16 +153,27 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # 5) Own load test — NO CPU/RAM limit (must not share app's 0.5 CPU)
-  #    docker compose --profile load-test run --rm load-test
+  # 5) Own load test — separate container, no CPU share with app (0.5 limit).
+  #    Does NOT start with plain `docker compose up` (profile-gated).
+  #    Runs the suite once, exits, and is removed with --rm.
+  #    Usage:
+  #      docker compose --profile load-test run --rm load-test
+  #      npm run load-test:docker
   load-test:
     profiles: ["load-test"]
     image: ht-logger-app:dev
     pull_policy: never
     container_name: ht-logger-load-test
+    restart: "no"
     working_dir: /usr/src/app
     environment:
       BASE_URL: http://app:8080
+      TOTAL_LOGS: ${TOTAL_LOGS:-1000000}
+      TARGET_LOGS_PER_SEC: ${TARGET_LOGS_PER_SEC:-15000}
+      # Larger batches = fewer HTTP/JSON hits on the 0.5 CPU app under Docker net.
+      BATCH_SIZE: ${BATCH_SIZE:-1000}
+      CONCURRENCY: ${CONCURRENCY:-28}
+      PACE_FACTOR: ${PACE_FACTOR:-1.15}
     volumes:
       - .:/usr/src/app
       - app_node_modules:/usr/src/app/node_modules
@@ -171,4 +182,5 @@ services:
     depends_on:
       app:
         condition: service_started
+    # One-shot: process exits → container stops (use --rm to delete it).
     entrypoint: ["npx", "tsx", "load-test/run.ts"]
