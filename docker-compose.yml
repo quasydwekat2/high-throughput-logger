@@ -22,7 +22,17 @@ services:
         -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
         -c pg_partman_bgw.interval=3600
         -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
-        -c max_connections=200
+        -c max_connections=40
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c work_mem=8MB
+        -c maintenance_work_mem=64MB
+        -c wal_buffers=16MB
+        -c min_wal_size=512MB
+        -c max_wal_size=1GB
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -33,6 +43,11 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - logger-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
       interval: 5s
@@ -120,6 +135,11 @@ services:
       - "${PORT:-8080}:8080"
     networks:
       - logger-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     depends_on:
       postgres:
         condition: service_healthy

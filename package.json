@@ -8,12 +8,8 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "vitest",
     "load-test": "tsx load-test/run.ts",
     "load-test:smoke": "tsx load-test/run.ts --smoke",
-    "check:partman": "tsx scripts/check-partman.ts",
-    "check:retention": "tsx scripts/check-retention.ts",
-    "premake:partitions": "tsx scripts/premake-partitions.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "migrate:create": "dotenv -e .env -- npx tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js create --migrations-dir src/DB/migrations --migration-filename-format index",
     "migrate:up": "dotenv -e .env -- npx tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir src/DB/migrations",
@@ -37,7 +33,6 @@
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "dotenv-expand": "^12.0.3",
     "express": "^5.2.1",
     "pg": "^8.22.0",
     "pg-copy-streams": "^7.0.0"
