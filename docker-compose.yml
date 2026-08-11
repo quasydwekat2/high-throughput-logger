@@ -6,14 +6,11 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
   pgadmin_data:
-    driver: local
   app_node_modules:
-    driver: local
 
 services:
-  # ── PostgreSQL 16 + pg_partman ────────────────────────────────────────────
+  # 1) PostgreSQL 16 + pg_partman
   postgres:
     build:
       context: .
@@ -43,13 +40,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1g
 
-  # ── pgAdmin 4 ─────────────────────────────────────────────────────────────
+  # 2) pgAdmin
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: ht-logger-pgadmin
@@ -70,11 +62,13 @@ services:
       postgres:
         condition: service_healthy
 
-  # ── DB migrations (runs once, applies src/DB/migrations, then exits) ───────
+  # 3) Migrations (مرة واحدة، بعدين يطلع)
   migrate:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.app
+    image: ht-logger-app:dev
+    pull_policy: never
     container_name: ht-logger-migrate
     restart: "no"
     environment:
@@ -87,19 +81,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ["npx", "tsx", "./node_modules/node-pg-migrate/bin/node-pg-migrate.js", "up", "--migrations-dir", "src/DB/migrations"]
+    entrypoint:
+      [
+        "npx",
+        "tsx",
+        "./node_modules/node-pg-migrate/bin/node-pg-migrate.js",
+        "up",
+        "--migrations-dir",
+        "src/DB/migrations",
+      ]
 
-  # ── Node.js app (production build) ───────────────────────────────────────
+  # 4) App (تطوير — hot reload)
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-      args:
-        PORT: ${PORT:-8080}
+      dockerfile: Dockerfile.app
+    image: ht-logger-app:dev
+    pull_policy: never
     container_name: ht-logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
@@ -112,8 +114,11 @@ services:
       FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-200}
       FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-10000}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
+    volumes:
+      - .:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080"
     networks:
       - logger-net
     depends_on:
@@ -121,8 +126,3 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256m
