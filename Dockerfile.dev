@@ -11,7 +11,7 @@ RUN npm ci
 
 # Source code is injected at runtime via the compose bind mount.
 # tsx watch restarts the process on every .ts file change.
-ARG PORT=3000
+ARG PORT=8080
 EXPOSE ${PORT}
 
 CMD ["npx", "tsx", "watch", "src/server.ts"]

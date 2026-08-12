@@ -75,6 +75,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        PORT: ${PORT:-8080}
     container_name: ht-logger-migrate
     restart: "no"
     environment:
@@ -89,23 +91,19 @@ services:
         condition: service_healthy
     entrypoint: ["npx", "tsx", "./node_modules/node-pg-migrate/bin/node-pg-migrate.js", "up", "--migrations-dir", "src/DB/migrations"]
 
-  # ── Node.js app (production build) ───────────────────────────────────────
+  # ── Node.js app (development — tsx watch) ─────────────────────────────────
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
     container_name: ht-logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
-      AUTH_ENABLED: ${AUTH_ENABLED:-false}
-      LOADGEN_API_KEY: ${LOADGEN_API_KEY:-}
-      RETENTION_DAYS: ${RETENTION_DAYS:-30}
-      RETENTION_CRON: ${RETENTION_CRON:-0 * * * *}
       PG_POOL_MAX: ${PG_POOL_MAX:-8}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
       PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-5000}
@@ -113,8 +111,11 @@ services:
       FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-200}
       FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-10000}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
+    volumes:
+      - .:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     networks:
       - logger-net
     depends_on:
@@ -122,8 +123,53 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256m
+
+  # ── Load test (local; profile load-test — not started by default) ─────────
+  load-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        PORT: ${PORT:-8080}
+    container_name: ht-logger-load-test
+    restart: "no"
+    profiles: ["load-test"]
+    environment:
+      BASE_URL: http://app:${PORT:-8080}
+      TARGET_LOGS_PER_SEC: ${TARGET_LOGS_PER_SEC:-15000}
+      TOTAL_LOGS: ${TOTAL_LOGS:-1000000}
+      BATCH_SIZE: ${BATCH_SIZE:-500}
+      CONCURRENCY: ${CONCURRENCY:-32}
+      AGGREGATE_INTERVAL_MS: ${AGGREGATE_INTERVAL_MS:-1000}
+      QUERY_INTERVAL_MS: ${QUERY_INTERVAL_MS:-2000}
+      VISIBILITY_DEADLINE_MS: ${VISIBILITY_DEADLINE_MS:-20000}
+      AGGREGATE_P95_MAX_MS: ${AGGREGATE_P95_MAX_MS:-1000}
+      WARMUP_SEC: ${WARMUP_SEC:-5}
+      HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
+      PACE_FACTOR: ${PACE_FACTOR:-1.05}
+    volumes:
+      - .:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
+    networks:
+      - logger-net
+    depends_on:
+      app:
+        condition: service_healthy
+    entrypoint: ["npx", "tsx", "load-test/run.ts"]

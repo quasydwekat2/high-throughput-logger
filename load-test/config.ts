@@ -1,12 +1,12 @@
 /** Load-test configuration (override via env or --smoke). */
 
-/** Optional --smoke profile (smaller run; still aims at 15k/s). */
+/** Optional --smoke profile (smaller run; still aims at 15k/s). Overrides .env. */
 if (process.argv.includes('--smoke')) {
-  process.env.TOTAL_LOGS ??= '100000';
+  process.env.TOTAL_LOGS = '100000';
   process.env.TARGET_LOGS_PER_SEC ??= '15000';
   // Fewer workers → less event-loop contention on the 0.5 CPU app container.
-  process.env.CONCURRENCY ??= '12';
-  process.env.WARMUP_SEC ??= '1';
+  process.env.CONCURRENCY = '12';
+  process.env.WARMUP_SEC = '1';
 }
 
 function intEnv(name: string, fallback: number): number {

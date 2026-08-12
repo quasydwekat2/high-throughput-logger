@@ -16,14 +16,39 @@ Standalone load-test suite for the high-throughput logger. Proves the performanc
 
 ## Prerequisites
 
+Dev stack (app via `Dockerfile.dev`):
+
 ```bash
-docker compose up --build -d
+npm run docker:up
+# or: docker compose up --build -d postgres migrate app
 # wait until GET http://localhost:8080/health → 200
 ```
 
-## Run
+## Run (Docker — recommended locally)
 
-From the repo root:
+Starts the stack if needed, then runs the `load-test` compose service:
+
+```bash
+npm run docker:load-test
+# smoke:
+npm run docker:load-test:smoke
+```
+
+Or:
+
+```powershell
+.\scripts\run-load-test.ps1
+.\scripts\run-load-test.ps1 -Smoke
+```
+
+```bash
+./scripts/run-load-test.sh
+./scripts/run-load-test.sh --smoke
+```
+
+## Run (host Node)
+
+From the repo root (stack already up):
 
 ```bash
 npm run load-test
