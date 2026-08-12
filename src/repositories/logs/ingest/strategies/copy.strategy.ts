@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { from as copyFrom } from "pg-copy-streams";
-import { pool } from "../../../../DB/client.js";
+import { writePool } from "../../../../DB/client.js";
 import type { LogEntry } from "../../../../types/logs/index.js";
 import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
@@ -36,13 +36,13 @@ function toCopyRow(log: LogEntry): string {
 }
 
 /**
- * Stream rows into Postgres via COPY FROM STDIN.
- * Fastest option for large batches.
- * Rows are yielded lazily so we don't allocate one giant string[] up front
+ * Stream rows into Postgres via COPY FROM STDIN (writePool).
+ * Fastest option for large batches — currently the active strategy.
+ * Rows are yielded in chunks so we don't allocate one giant string up front
  * (matters under the 256 MB app memory limit).
  */
 export const insertWithCopy: InsertLogsStrategy = async (logs) => {
-  const client = await pool.connect();
+  const client = await writePool.connect();
   try {
     const copyStream = client.query(
       copyFrom(

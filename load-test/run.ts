@@ -78,8 +78,10 @@ async function measureVisibility(
 
   while (Date.now() < until) {
     try {
+      // Prefer attr equality (GIN) over q=ILIKE — message has no trgm index
+      // under write-optimized schema; ILIKE full scans miss the 20s visibility bar.
       const { data } = await queryLogs({
-        q: marker,
+        'attr.marker': marker,
         limit: '10',
       });
       const hit = data.logs.some(

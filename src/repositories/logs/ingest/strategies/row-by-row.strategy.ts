@@ -1,4 +1,4 @@
-import { pool } from "../../../../DB/client.js";
+import { writePool } from "../../../../DB/client.js";
 import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
 
 /**
@@ -6,7 +6,7 @@ import type { InsertLogsStrategy } from "../../../../types/logs/index.js";
  * Slowest option — useful as a baseline for benchmarks.
  */
 export const insertRowByRow: InsertLogsStrategy = async (logs) => {
-  const client = await pool.connect();
+  const client = await writePool.connect();
   try {
     await client.query("BEGIN");
     for (const log of logs) {

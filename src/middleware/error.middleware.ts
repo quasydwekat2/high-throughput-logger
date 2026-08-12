@@ -19,6 +19,14 @@ function isPayloadTooLargeError(err: unknown): boolean {
   );
 }
 
+/** pg-pool throws a plain Error when connectionTimeoutMillis elapses. */
+function isPoolConnectTimeout(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    /timeout exceeded when trying to connect/i.test(err.message)
+  );
+}
+
 function toAppError(err: unknown): AppError | null {
   if (err instanceof AppError) return err;
 
@@ -28,6 +36,12 @@ function toAppError(err: unknown): AppError | null {
 
   if (isPayloadTooLargeError(err)) {
     return new AppError(413, "request body too large");
+  }
+
+  // Under WAL checkpoint / heavy COPY, pool acquire can time out — backpressure,
+  // not an internal bug. Map to 503 so clients may retry.
+  if (isPoolConnectTimeout(err)) {
+    return new AppError(503, "database busy, retry shortly");
   }
 
   if (err instanceof PgDatabaseError) {

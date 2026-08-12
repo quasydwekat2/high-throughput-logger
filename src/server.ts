@@ -1,6 +1,6 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
-import { pool } from "./DB/client.js";
+import { closePools } from "./DB/client.js";
 import { ingestBuffer } from "./services/ingest-buffer.js";
 
 async function start(): Promise<void> {
@@ -20,7 +20,7 @@ async function start(): Promise<void> {
         if (config.ingestBufferEnabled) {
           await ingestBuffer.stop();
         }
-        await pool.end();
+        await closePools();
         process.exit(0);
       })();
     });

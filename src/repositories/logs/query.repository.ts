@@ -1,4 +1,4 @@
-import { pool } from "../../DB/client.js";
+import { readPool } from "../../DB/client.js";
 import type {
   ParsedQueryParams,
   StoredLogEntry,
@@ -64,7 +64,7 @@ export async function queryLogs(
     LIMIT ${fetchLimit}
   `;
 
-  const result = await pool.query<{
+  const result = await readPool.query<{
     id: string;
     timestamp: Date;
     level: string;

@@ -3,7 +3,7 @@ import { getIngestStrategy } from "./ingest/select-strategy.js";
 
 /**
  * Bulk-inserts a batch of validated log entries.
- * Strategy is selected in ingest/select-strategy.ts (one-line switch).
+ * Active strategy is selected in ingest/select-strategy.ts (default: COPY).
  */
 export async function insertLogs(logs: LogEntry[]): Promise<void> {
   if (logs.length === 0) return;
