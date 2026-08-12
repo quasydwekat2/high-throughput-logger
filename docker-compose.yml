@@ -27,6 +27,10 @@ services:
         -c pg_partman_bgw.interval=3600
         -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
         -c max_connections=200
+        -c max_parallel_workers_per_gather=0
+        -c max_parallel_workers=0
+        -c max_parallel_maintenance_workers=0
+        -c work_mem=8MB
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -104,13 +108,16 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
-      PG_POOL_MAX: ${PG_POOL_MAX:-8}
+      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-4}
+      PG_READ_POOL_MAX: ${PG_READ_POOL_MAX:-6}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
-      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-5000}
+      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
       INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-200}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-10000}
+      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-50}
+      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-4000}
+      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-2}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
     volumes:
       - .:/usr/src/app
       - app_node_modules:/usr/src/app/node_modules

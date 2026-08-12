@@ -1,7 +1,7 @@
+import { endPools } from './DB/client.js';
+import { ingestBuffer } from './services/ingest-buffer.js';
 import { buildApp } from './app.js';
 import { config } from './config.js';
-import { pool } from './DB/client.js';
-import { ingestBuffer } from './services/ingest-buffer.js';
 
 function start(): void {
   if (config.ingestBufferEnabled) {
@@ -20,7 +20,7 @@ function start(): void {
         if (config.ingestBufferEnabled) {
           await ingestBuffer.stop();
         }
-        await pool.end();
+        await endPools();
         process.exit(0);
       })();
     });

@@ -1,4 +1,5 @@
-import { pool } from '../../DB/client.js';
+import { config } from '../../config.js';
+import { readPool } from '../../DB/client.js';
 import type {
   ParsedQueryParams,
   StoredLogEntry,
@@ -15,14 +16,19 @@ export async function queryLogs(
   const values: unknown[] = [];
   let n = 1;
 
-  if (params.since) {
-    conditions.push(`timestamp >= $${n++}::timestamptz`);
-    values.push(params.since);
-  }
-  if (params.until) {
-    conditions.push(`timestamp < $${n++}::timestamptz`);
-    values.push(params.until);
-  }
+  // Partition pruning: always bound timestamp so Postgres skips cold partitions.
+  // Matches retention when `since` is omitted (semantically "all retained rows").
+  const since =
+    params.since ??
+    new Date(Date.now() - config.retentionDays * 24 * 60 * 60 * 1000);
+  // Spec allows timestamps up to 5 minutes in the future.
+  const until = params.until ?? new Date(Date.now() + 5 * 60 * 1000);
+
+  conditions.push(`timestamp >= $${n++}::timestamptz`);
+  values.push(since);
+  conditions.push(`timestamp < $${n++}::timestamptz`);
+  values.push(until);
+
   if (params.service) {
     conditions.push(`service = $${n++}`);
     values.push(params.service);
@@ -50,12 +56,13 @@ export async function queryLogs(
     values.push(params.cursor.timestamp, params.cursor.id);
   }
 
-  const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = `WHERE ${conditions.join(' AND ')}`;
 
   // Fetch one extra row to determine whether a next page exists
   const fetchLimit = params.limit + 1;
 
+  // Uses idx_logs_service_level_ts / idx_logs_level_ts when filters match;
+  // timestamp bounds enable partition pruning on RANGE(timestamp).
   const sql = `
     SELECT id, timestamp, level, service, message, attributes
     FROM logs
@@ -64,7 +71,7 @@ export async function queryLogs(
     LIMIT ${fetchLimit}
   `;
 
-  const result = await pool.query<{
+  const result = await readPool.query<{
     id: string;
     timestamp: Date;
     level: string;

@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { from as copyFrom } from 'pg-copy-streams';
-import { pool } from '../../../../DB/client.js';
+import { writePool } from '../../../../DB/client.js';
 import type { LogEntry } from '../../../../types/log.types.js';
 import type { InsertLogsStrategy } from '../../../../types/log.types.js';
 
@@ -31,7 +31,7 @@ function toCopyRow(log: LogEntry): string {
  * Fastest option for large batches.
  */
 export const insertWithCopy: InsertLogsStrategy = async (logs) => {
-  const client = await pool.connect();
+  const client = await writePool.connect();
   try {
     const copyStream = client.query(
       copyFrom(

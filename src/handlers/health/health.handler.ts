@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { pool } from '../../DB/client.js';
+import { readPool } from '../../DB/client.js';
 import {
   ServiceUnavailableError,
   type HealthStatusResponse,
@@ -17,7 +17,7 @@ export async function healthHandler(
   res: Response,
 ): Promise<void> {
   try {
-    const result = await pool.query<{ count: number }>(
+    const result = await readPool.query<{ count: number }>(
       'SELECT COUNT(*)::int AS count FROM pgmigrations',
     );
     const applied = result.rows[0]?.count ?? 0;

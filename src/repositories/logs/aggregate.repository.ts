@@ -1,4 +1,4 @@
-import { pool } from '../../DB/client.js';
+import { readPool } from '../../DB/client.js';
 import type {
   ParsedAggregateParams,
   AggregateBucket,
@@ -23,6 +23,7 @@ function bucketExpr(size: BucketSize): string {
 export async function aggregateLogs(
   params: ParsedAggregateParams,
 ): Promise<AggregateBucket[]> {
+  // since/until are required by the API — always present → partition pruning.
   const conditions: string[] = [
     'timestamp >= $1::timestamptz',
     'timestamp < $2::timestamptz',
@@ -78,7 +79,7 @@ export async function aggregateLogs(
     `;
   }
 
-  const result = await pool.query<{
+  const result = await readPool.query<{
     start: Date;
     group: string | null;
     count: number;

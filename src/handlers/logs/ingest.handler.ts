@@ -30,7 +30,8 @@ export async function ingestHandler(
   }
 
   if (config.ingestBufferEnabled) {
-    ingestBuffer.enqueue(accepted);
+    // Wait until this batch is flushed to Postgres — never 200 before durable write.
+    await ingestBuffer.enqueue(accepted);
   } else {
     await insertLogs(accepted);
   }
