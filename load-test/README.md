@@ -16,34 +16,27 @@ Standalone load-test suite for the high-throughput logger. Proves the performanc
 
 ## Prerequisites
 
-Dev stack (app via `Dockerfile.dev`):
+Production stack (`Dockerfile` → `node dist/server.js`):
 
 ```bash
-npm run docker:up
-# or: docker compose up --build -d postgres migrate app
+docker compose down -v
+docker compose up --build -d
 # wait until GET http://localhost:8080/health → 200
 ```
 
-## Run (Docker — recommended locally)
-
-Starts the stack if needed, then runs the `load-test` compose service:
+## Run (Docker — WSL / Linux / macOS)
 
 ```bash
 npm run docker:load-test
-# smoke:
 npm run docker:load-test:smoke
 ```
 
-Or:
-
-```powershell
-.\scripts\run-load-test.ps1
-.\scripts\run-load-test.ps1 -Smoke
-```
+Same as:
 
 ```bash
-./scripts/run-load-test.sh
-./scripts/run-load-test.sh --smoke
+docker compose up --build -d
+docker compose --profile load-test run --rm load-test
+docker compose --profile load-test run --rm load-test --smoke
 ```
 
 ## Run (host Node)
@@ -51,7 +44,7 @@ Or:
 From the repo root (stack already up):
 
 ```bash
-npm run load-test
+npm run test-load
 ```
 
 Or directly:
@@ -63,13 +56,13 @@ npx tsx load-test/run.ts
 ### Quick smoke (smaller / faster)
 
 ```bash
-npm run load-test:smoke
+npm run test-load:smoke
 ```
 
 ### Full checklist run (~1M rows)
 
 ```bash
-TOTAL_LOGS=1000000 TARGET_LOGS_PER_SEC=15000 BATCH_SIZE=500 CONCURRENCY=32 npm run load-test
+TOTAL_LOGS=1000000 TARGET_LOGS_PER_SEC=15000 BATCH_SIZE=500 CONCURRENCY=32 npm run test-load
 ```
 
 ## Environment knobs

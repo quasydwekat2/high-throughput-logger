@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./load-test",
+    "outDir": "./dist-load-test",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["load-test/**/*"]
+}

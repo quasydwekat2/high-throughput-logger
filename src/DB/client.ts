@@ -7,18 +7,24 @@ const poolDefaults = {
   connectionTimeoutMillis: config.pgConnectionTimeoutMs,
 };
 
-/** Dedicated to ingest (COPY / INSERT). Kept small so reads stay responsive. */
+/** Ingest COPY + minute_rollup upsert. */
 export const writePool = new Pool({
   ...poolDefaults,
   max: config.pgWritePoolMax,
 });
 
-/** Dedicated to query, aggregate, and health checks. */
-export const readPool = new Pool({
+/** GET /logs and GET /health only — never blocked by aggregate COUNT. */
+export const queryPool = new Pool({
   ...poolDefaults,
-  max: config.pgReadPoolMax,
+  max: config.pgQueryPoolMax,
+});
+
+/** GET /logs/aggregate only. */
+export const aggregatePool = new Pool({
+  ...poolDefaults,
+  max: config.pgAggregatePoolMax,
 });
 
 export async function endPools(): Promise<void> {
-  await Promise.all([writePool.end(), readPool.end()]);
+  await Promise.all([writePool.end(), queryPool.end(), aggregatePool.end()]);
 }

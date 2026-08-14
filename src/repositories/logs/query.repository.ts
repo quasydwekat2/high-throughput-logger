@@ -1,5 +1,5 @@
 import { config } from '../../config.js';
-import { readPool } from '../../DB/client.js';
+import { queryPool } from '../../DB/client.js';
 import type {
   ParsedQueryParams,
   StoredLogEntry,
@@ -8,6 +8,7 @@ import type {
   LogAttributes,
 } from '../../types/log.types.js';
 import { encodeCursor } from '../../utils/cursor-pagination.util.js';
+import { pushAttrContainment } from '../../utils/attr-filter.util.js';
 
 export async function queryLogs(
   params: ParsedQueryParams,
@@ -41,10 +42,7 @@ export async function queryLogs(
     conditions.push(`message ILIKE $${n++}`);
     values.push(`%${params.q}%`);
   }
-  for (const [key, val] of Object.entries(params.attrs)) {
-    conditions.push(`attributes @> $${n++}::jsonb`);
-    values.push(JSON.stringify({ [key]: val }));
-  }
+  n = pushAttrContainment(conditions, values, n, params.attrs);
 
   // Cursor: rows that come AFTER cursor in (timestamp DESC, id DESC) order
   if (params.cursor) {
@@ -61,7 +59,7 @@ export async function queryLogs(
   // Fetch one extra row to determine whether a next page exists
   const fetchLimit = params.limit + 1;
 
-  // Uses idx_logs_service_level_ts / idx_logs_level_ts when filters match;
+  // Uses idx_logs_service_level_ts when service/level filters match.
   // timestamp bounds enable partition pruning on RANGE(timestamp).
   const sql = `
     SELECT id, timestamp, level, service, message, attributes
@@ -71,7 +69,7 @@ export async function queryLogs(
     LIMIT ${fetchLimit}
   `;
 
-  const result = await readPool.query<{
+  const result = await queryPool.query<{
     id: string;
     timestamp: Date;
     level: string;
