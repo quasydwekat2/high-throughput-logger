@@ -10,7 +10,7 @@ import {
  * (rows in `pgmigrations` = files under src/DB/migrations).
  * Bump when you add a migration.
  */
-const EXPECTED_MIGRATION_COUNT = 4;
+const EXPECTED_MIGRATION_COUNT = 6;
 
 export async function healthHandler(
   _req: Request,

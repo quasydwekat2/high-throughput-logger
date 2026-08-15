@@ -1,5 +1,6 @@
 import type { CursorPayload } from '../types/log.types.js';
 
+/** `timestamp` must be ISO-8601 with microseconds (not Date.toISOString()). */
 export function encodeCursor(timestamp: string, id: string): string {
   return Buffer.from(JSON.stringify({ timestamp, id })).toString('base64url');
 }

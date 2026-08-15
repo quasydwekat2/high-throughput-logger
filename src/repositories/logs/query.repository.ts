@@ -1,4 +1,3 @@
-import { config } from '../../config.js';
 import { queryPool } from '../../DB/client.js';
 import type {
   ParsedQueryParams,
@@ -10,6 +9,9 @@ import type {
 import { encodeCursor } from '../../utils/cursor-pagination.util.js';
 import { pushAttrContainment } from '../../utils/attr-filter.util.js';
 
+/** UTC ISO-8601 with microseconds — JS Date only has millisecond precision. */
+const TS_ISO_MICROS = `to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
 export async function queryLogs(
   params: ParsedQueryParams,
 ): Promise<QueryLogsResponse> {
@@ -17,18 +19,15 @@ export async function queryLogs(
   const values: unknown[] = [];
   let n = 1;
 
-  // Partition pruning: always bound timestamp so Postgres skips cold partitions.
-  // Matches retention when `since` is omitted (semantically "all retained rows").
-  const since =
-    params.since ??
-    new Date(Date.now() - config.retentionDays * 24 * 60 * 60 * 1000);
-  // Spec allows timestamps up to 5 minutes in the future.
-  const until = params.until ?? new Date(Date.now() + 5 * 60 * 1000);
-
-  conditions.push(`timestamp >= $${n++}::timestamptz`);
-  values.push(since);
-  conditions.push(`timestamp < $${n++}::timestamptz`);
-  values.push(until);
+  // since/until only when the client sent them — do not inject a 30-day window.
+  if (params.since) {
+    conditions.push(`timestamp >= $${n++}::timestamptz`);
+    values.push(params.since);
+  }
+  if (params.until) {
+    conditions.push(`timestamp < $${n++}::timestamptz`);
+    values.push(params.until);
+  }
 
   if (params.service) {
     conditions.push(`service = $${n++}`);
@@ -44,25 +43,21 @@ export async function queryLogs(
   }
   n = pushAttrContainment(conditions, values, n, params.attrs);
 
-  // Cursor: rows that come AFTER cursor in (timestamp DESC, id DESC) order
+  // Next page in (timestamp DESC, id DESC): row comparison uses idx_logs_ts_id.
   if (params.cursor) {
     const tsPos = n++;
     const idPos = n++;
     conditions.push(
-      `(timestamp < $${tsPos}::timestamptz OR (timestamp = $${tsPos}::timestamptz AND id < $${idPos}::bigint))`,
+      `(timestamp, id) < ($${tsPos}::timestamptz, $${idPos}::bigint)`,
     );
     values.push(params.cursor.timestamp, params.cursor.id);
   }
 
-  const where = `WHERE ${conditions.join(' AND ')}`;
-
-  // Fetch one extra row to determine whether a next page exists
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const fetchLimit = params.limit + 1;
 
-  // Uses idx_logs_service_level_ts when service/level filters match.
-  // timestamp bounds enable partition pruning on RANGE(timestamp).
   const sql = `
-    SELECT id, timestamp, level, service, message, attributes
+    SELECT id, ${TS_ISO_MICROS} AS ts_iso, level, service, message, attributes
     FROM logs
     ${where}
     ORDER BY timestamp DESC, id DESC
@@ -71,7 +66,7 @@ export async function queryLogs(
 
   const result = await queryPool.query<{
     id: string;
-    timestamp: Date;
+    ts_iso: string;
     level: string;
     service: string;
     message: string;
@@ -84,12 +79,12 @@ export async function queryLogs(
   if (rows.length > params.limit) {
     rows.pop();
     const last = rows[rows.length - 1];
-    next_cursor = encodeCursor(last.timestamp.toISOString(), String(last.id));
+    next_cursor = encodeCursor(last.ts_iso, String(last.id));
   }
 
   const logs: StoredLogEntry[] = rows.map((row) => ({
     id: String(row.id),
-    timestamp: row.timestamp.toISOString(),
+    timestamp: row.ts_iso,
     level: row.level as LogLevel,
     service: row.service,
     message: row.message,

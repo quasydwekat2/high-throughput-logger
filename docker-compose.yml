@@ -22,17 +22,18 @@ services:
     command: >
       postgres
         -c shared_preload_libraries=pg_partman_bgw
-        -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
+        -c pg_partman_bgw.dbname=${POSTGRES_DB}
         -c pg_partman_bgw.interval=3600
-        -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
+        -c pg_partman_bgw.role=${POSTGRES_USER}
         -c max_connections=50
         -c shared_buffers=256MB
         -c effective_cache_size=768MB
         -c maintenance_work_mem=64MB
-        -c work_mem=4MB
+        -c work_mem=8MB
         -c wal_buffers=16MB
+        -c gin_pending_list_limit=8MB
         -c min_wal_size=128MB
-        -c max_wal_size=1GB
+        -c max_wal_size=2GB
         -c checkpoint_timeout=15min
         -c checkpoint_completion_target=0.9
         -c wal_compression=on
@@ -42,18 +43,19 @@ services:
         -c max_parallel_workers_per_gather=0
         -c max_parallel_workers=0
         -c max_parallel_maintenance_workers=0
+    env_file: .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-log_ingestion_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT}:5432"
     networks:
       - logger
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -71,11 +73,13 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT:-8080}
+        PORT: ${PORT}
     container_name: logger-migrate
     restart: "no"
+    env_file: .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
+      # localhost in .env is for host-local npm; inside Compose the DB host is the service name.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
     networks:
       - logger
     depends_on:
@@ -97,26 +101,16 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT:-8080}
+        PORT: ${PORT}
     container_name: logger-app
     restart: unless-stopped
+    env_file: .env
     environment:
-      NODE_ENV: development
-      PORT: ${PORT:-8080}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
-      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-2}
-      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-2}
-      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-2}
-      PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
-      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
-      INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-25}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-8000}
-      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-1}
-      QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
-      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"
+      - "${PORT}:${PORT}"
     volumes:
       - app_data:/usr/src/app/data
       - ./src:/usr/src/app/src
@@ -151,19 +145,9 @@ services:
     container_name: logger-load
     restart: "no"
     profiles: ["load-test"]
+    env_file: .env
     environment:
-      BASE_URL: http://app:${PORT:-8080}
-      TARGET_LOGS_PER_SEC: ${TARGET_LOGS_PER_SEC:-15000}
-      TOTAL_LOGS: ${TOTAL_LOGS:-1000000}
-      BATCH_SIZE: ${BATCH_SIZE:-500}
-      CONCURRENCY: ${CONCURRENCY:-32}
-      AGGREGATE_INTERVAL_MS: ${AGGREGATE_INTERVAL_MS:-1000}
-      QUERY_INTERVAL_MS: ${QUERY_INTERVAL_MS:-2000}
-      VISIBILITY_DEADLINE_MS: ${VISIBILITY_DEADLINE_MS:-20000}
-      AGGREGATE_P95_MAX_MS: ${AGGREGATE_P95_MAX_MS:-1000}
-      WARMUP_SEC: ${WARMUP_SEC:-5}
-      HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
-      PACE_FACTOR: ${PACE_FACTOR:-1.05}
+      BASE_URL: http://app:${PORT}
     volumes:
       - ./load-test:/usr/src/app/load-test
     networks:

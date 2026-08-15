@@ -31,6 +31,12 @@ export function fmtMs(n: number): string {
   return `${n.toFixed(1)}ms`;
 }
 
+export function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return 'n/a';
+  return Math.round(n).toLocaleString('en-US');
+}
+
 export function fmtRate(n: number): string {
-  return `${n.toFixed(0)}/s`;
+  if (!Number.isFinite(n)) return 'n/a';
+  return `${fmtNum(n)}/s`;
 }

@@ -91,8 +91,9 @@ export interface CursorPayload {
 export interface ParsedQueryParams {
   service?: string;
   level?: LogLevel;
-  since?: Date;
-  until?: Date;
+  /** Original ISO-8601 strings (microseconds preserved for timestamptz). */
+  since?: string;
+  until?: string;
   attrs: Record<string, string>;
   q?: string;
   limit: number;

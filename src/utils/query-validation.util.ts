@@ -27,6 +27,12 @@ function parseDate(value: string, name: string): Date {
   return new Date(ms);
 }
 
+/** Keep the original ISO string so Postgres sees microseconds, not Date ms. */
+function parseIsoTimestamp(value: string, name: string): string {
+  parseDate(value, name);
+  return value;
+}
+
 function extractAttrs(
   qs: QueryLogsParams | AggregateLogsParams,
 ): Record<string, string> {
@@ -49,11 +55,15 @@ export function parseQueryParams(qs: QueryLogsParams): ParsedQueryParams {
   }
 
   const since =
-    qs.since !== undefined ? parseDate(qs.since, 'since') : undefined;
+    qs.since !== undefined ? parseIsoTimestamp(qs.since, 'since') : undefined;
   const until =
-    qs.until !== undefined ? parseDate(qs.until, 'until') : undefined;
+    qs.until !== undefined ? parseIsoTimestamp(qs.until, 'until') : undefined;
 
-  if (since !== undefined && until !== undefined && until <= since) {
+  if (
+    since !== undefined &&
+    until !== undefined &&
+    Date.parse(until) <= Date.parse(since)
+  ) {
     throw new ValidationError('until must be later than since');
   }
 

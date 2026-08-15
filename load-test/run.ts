@@ -1,4 +1,4 @@
-import { loadConfig, type LoadConfig } from './config.js';
+import { loadConfig } from './config.js';
 import {
   getAggregate,
   getHealth,
@@ -6,23 +6,20 @@ import {
   postLogs,
 } from './client.js';
 import { aggregateWindow, makeBatch } from './generators.js';
-import { fmtMs, fmtRate, latencyStats } from './metrics.js';
-
-type Check = { name: string; pass: boolean; detail: string };
+import { fmtMs, fmtNum, fmtRate, latencyStats } from './metrics.js';
+import {
+  beginWait,
+  endWait,
+  printBanner,
+  printReport,
+  startProgress,
+  waitHealthyPretty,
+  warmupPretty,
+  type Check,
+} from './report.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-async function waitHealthy(cfg: LoadConfig): Promise<void> {
-  const deadline = Date.now() + cfg.healthTimeoutMs;
-  while (Date.now() < deadline) {
-    const res = await getHealth(cfg.baseUrl);
-    if (res.ok) return;
-    process.stdout.write('.');
-    await sleep(1000);
-  }
-  throw new Error(`GET /health did not return 200 within ${cfg.healthTimeoutMs}ms`);
 }
 
 async function main(): Promise<void> {
@@ -34,28 +31,18 @@ async function main(): Promise<void> {
   const batchIntervalMs =
     (cfg.batchSize / cfg.targetLogsPerSec) * 1000 / cfg.paceFactor;
 
-  console.log('=== local load test (spec performance bars) ===');
-  console.log(JSON.stringify({
-    baseUrl: cfg.baseUrl,
-    totalLogs: cfg.totalLogs,
-    targetLogsPerSec: cfg.targetLogsPerSec,
-    batchSize: cfg.batchSize,
-    concurrency: cfg.concurrency,
-    smoke: cfg.smoke,
-  }, null, 2));
+  printBanner(cfg);
 
-  process.stdout.write('waiting for /health ');
-  await waitHealthy(cfg);
-  console.log(' ok');
+  await waitHealthyPretty(
+    async () => (await getHealth(cfg.baseUrl)).ok,
+    cfg.healthTimeoutMs,
+    sleep,
+  );
 
-  if (cfg.warmupSec > 0) {
+  await warmupPretty(cfg.warmupSec, async () => {
     const warmN = Math.min(cfg.batchSize, 200);
-    const warmUntil = Date.now() + cfg.warmupSec * 1000;
-    console.log(`warmup ${cfg.warmupSec}s...`);
-    while (Date.now() < warmUntil) {
-      await postLogs(cfg.baseUrl, makeBatch(warmN, 0, nowMs));
-    }
-  }
+    await postLogs(cfg.baseUrl, makeBatch(warmN, 0, nowMs));
+  });
 
   const ingestLat: number[] = [];
   const aggLat: number[] = [];
@@ -89,6 +76,12 @@ async function main(): Promise<void> {
   });
 
   const ingestStart = Date.now();
+  const stopProgress = startProgress(() => ({
+    done: Math.min(nextBatch, totalBatches),
+    total: totalBatches,
+    accepted,
+    started: ingestStart,
+  }));
 
   async function aggregateLoop(): Promise<void> {
     while (!ingestDone) {
@@ -143,11 +136,14 @@ async function main(): Promise<void> {
   const background = Promise.all([aggregateLoop(), queryLoop()]);
   await Promise.all(Array.from({ length: cfg.concurrency }, () => worker()));
   ingestDone = true;
+  stopProgress();
   await background;
 
   const ingestMs = Date.now() - ingestStart;
   const sustained = accepted / (ingestMs / 1000);
 
+  beginWait('visible');
+  process.stdout.write('waiting');
   const visStart = Date.now();
   let visibleMs = NaN;
   while (Date.now() - visStart < cfg.visibilityDeadlineMs) {
@@ -158,8 +154,10 @@ async function main(): Promise<void> {
       visibleMs = Date.now() - visStart;
       break;
     }
+    process.stdout.write('.');
     await sleep(250);
   }
+  endWait(Number.isFinite(visibleMs), Number.isFinite(visibleMs) ? fmtMs(visibleMs) : 'timeout');
 
   const ingestStats = latencyStats(ingestLat);
   const aggStats = latencyStats(aggLat);
@@ -168,29 +166,29 @@ async function main(): Promise<void> {
 
   const checks: Check[] = [
     {
-      name: `sustain >= ${cfg.targetLogsPerSec} logs/s`,
+      name: `sustain >= ${fmtNum(cfg.targetLogsPerSec)} logs/s`,
       pass: sustained >= cfg.targetLogsPerSec,
       detail: fmtRate(sustained),
     },
     {
       name: 'no dropped batches / crashes',
       pass: failBatches === 0 && crashes === 0,
-      detail: `fail_batches=${failBatches} crashes=${crashes}`,
+      detail: `fail ${fmtNum(failBatches)}  crashes ${fmtNum(crashes)}`,
     },
     {
       name: `aggregate p95 < ${cfg.aggregateP95MaxMs}ms`,
       pass: Number.isFinite(aggStats.p95) && aggStats.p95 < cfg.aggregateP95MaxMs,
-      detail: `p95=${fmtMs(aggStats.p95)} n=${aggStats.n}`,
+      detail: `p95 ${fmtMs(aggStats.p95)}  n ${fmtNum(aggStats.n)}`,
     },
     {
       name: 'query OK while ingesting',
       pass: queryOk > 0 && queryFail === 0,
-      detail: `ok=${queryOk} fail=${queryFail}`,
+      detail: `ok ${fmtNum(queryOk)}  fail ${fmtNum(queryFail)}`,
     },
     {
-      name: `~${expectedRows} accepted rows`,
+      name: `~${fmtNum(expectedRows)} accepted rows`,
       pass: accepted >= expectedRows,
-      detail: `accepted=${accepted} rejected=${rejected}`,
+      detail: `accepted ${fmtNum(accepted)}  rejected ${fmtNum(rejected)}`,
     },
     {
       name: `new data queryable < ${cfg.visibilityDeadlineMs}ms`,
@@ -200,22 +198,26 @@ async function main(): Promise<void> {
     {
       name: '1 aggregate request/sec during ingest',
       pass: aggOk >= Math.max(1, Math.floor(ingestMs / 1000) - 2),
-      detail: `agg_ok=${aggOk} over ${(ingestMs / 1000).toFixed(1)}s`,
+      detail: `ok ${fmtNum(aggOk)}  over ${(ingestMs / 1000).toFixed(1)}s`,
     },
   ];
 
-  console.log('\n=== results ===');
-  console.log(`duration: ${(ingestMs / 1000).toFixed(1)}s`);
-  console.log(`batches: ${totalBatches}  ingest latency p50=${fmtMs(ingestStats.p50)} p95=${fmtMs(ingestStats.p95)} p99=${fmtMs(ingestStats.p99)} max=${fmtMs(ingestStats.max)}`);
-  console.log(`aggregate p50=${fmtMs(aggStats.p50)} p95=${fmtMs(aggStats.p95)} p99=${fmtMs(aggStats.p99)}`);
-  console.log(`query     p50=${fmtMs(queryStats.p50)} p95=${fmtMs(queryStats.p95)}`);
-  console.log('status:', Object.fromEntries(statusCounts));
-  console.log('\n=== checks (spec) ===');
-  for (const c of checks) {
-    console.log(`${c.pass ? 'PASS' : 'FAIL'}  ${c.name}  (${c.detail})`);
-  }
+  printReport({
+    cfg,
+    ingestMs,
+    totalBatches,
+    failBatches,
+    accepted,
+    rejected,
+    sustained,
+    ingest: ingestStats,
+    agg: aggStats,
+    query: queryStats,
+    statusCounts,
+    checks,
+  });
 
-  if (checks.some((c) => !c.pass)) {
+  if (checks.some((check) => !check.pass)) {
     process.exitCode = 1;
   }
 }
