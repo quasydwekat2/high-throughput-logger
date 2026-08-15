@@ -1,87 +1,67 @@
-import { loadTestConfig } from './config.js';
+const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+const SERVICES = ['checkout', 'auth', 'billing', 'api', 'worker'] as const;
+const REGIONS = ['eu-west', 'us-east', 'ap-south'] as const;
+const MESSAGES = [
+  'payment declined',
+  'request completed',
+  'retry scheduled',
+  'cache miss',
+  'user login',
+  'inventory updated',
+];
 
-export interface SyntheticLog {
+export type GeneratedLog = {
   timestamp: string;
-  level: string;
-  service: string;
+  level: (typeof LEVELS)[number];
+  service: (typeof SERVICES)[number];
   message: string;
   attributes: {
+    user_id: string;
     region: string;
-    request_id: string;
-    user_id: number;
     retries: number;
-    marker?: string;
+    loadtest_id?: string;
   };
+};
+
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+function pick<T>(xs: readonly T[], i: number): T {
+  return xs[i % xs.length]!;
 }
 
-const REGIONS = ['us-east', 'eu-west', 'ap-south'] as const;
-
-let seq = 0;
-
-function nextId(): number {
-  seq += 1;
-  return seq;
-}
-
-/** Spread timestamps across ~30 days ending at `now`. */
-export function timestampForIndex(index: number, total: number, nowMs: number): string {
-  const monthMs = 30 * 24 * 60 * 60 * 1000;
-  const offset = total <= 1 ? 0 : Math.floor((index / (total - 1)) * monthMs);
-  return new Date(nowMs - monthMs + offset).toISOString();
-}
-
-export function makeLog(
-  index: number,
-  total: number,
-  nowMs: number,
-  marker?: string,
-): SyntheticLog {
-  const id = nextId();
-  const services = loadTestConfig.services;
-  const levels = loadTestConfig.levels;
-
-  const log: SyntheticLog = {
-    timestamp: timestampForIndex(index, total, nowMs),
-    level: levels[id % levels.length]!,
-    service: services[id % services.length]!,
-    // Keep messages compact so batches stay under typical body limits.
-    message: `lt ${id}`,
-    attributes: {
-      region: REGIONS[id % REGIONS.length]!,
-      request_id: `r${id.toString(36)}`,
-      user_id: (id % 10_000) + 1,
-      retries: id % 5,
-    },
-  };
-
-  if (marker !== undefined) {
-    log.attributes.marker = marker;
-    log.message = `loadtest marker ${marker}`;
-    // Fresh timestamp so visibility probe is recent
-    log.timestamp = new Date().toISOString();
-  }
-
-  return log;
-}
-
+/** Spread timestamps over ~30 days so the dataset matches the brief. */
 export function makeBatch(
-  startIndex: number,
   count: number,
-  total: number,
+  batchIndex: number,
   nowMs: number,
-  marker?: string,
-): SyntheticLog[] {
-  const batch: SyntheticLog[] = new Array(count);
+  markerId?: string,
+): GeneratedLog[] {
+  const logs: GeneratedLog[] = [];
   for (let i = 0; i < count; i++) {
-    const idx = startIndex + i;
-    batch[i] =
-      marker !== undefined && i === 0
-        ? makeLog(idx, total, nowMs, marker)
-        : makeLog(idx, total, nowMs);
+    const seq = batchIndex * 10_000 + i;
+    const offset = (seq * 9973) % MONTH_MS;
+    const ts = new Date(nowMs - offset).toISOString();
+    logs.push({
+      timestamp: ts,
+      level: pick(LEVELS, seq),
+      service: pick(SERVICES, seq >> 1),
+      message: pick(MESSAGES, seq >> 2),
+      attributes: {
+        user_id: String(seq % 10_000),
+        region: pick(REGIONS, seq),
+        retries: seq % 5,
+      },
+    });
   }
-  return batch;
+  if (markerId !== undefined && logs[0]) {
+    logs[0]!.attributes.loadtest_id = markerId;
+  }
+  return logs;
 }
 
-export function uniqueMarker(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+export function aggregateWindow(nowMs: number): { since: string; until: string } {
+  return {
+    since: new Date(nowMs - MONTH_MS).toISOString(),
+    until: new Date(nowMs + 60_000).toISOString(),
+  };
 }

@@ -1,20 +1,23 @@
-name: high-throughput-logger
+name: logger
 
 networks:
-  logger-net:
+  logger:
     driver: bridge
 
 volumes:
   postgres_data:
     driver: local
+  app_data:
+    driver: local
 
 services:
   # ── PostgreSQL 16 + pg_partman ────────────────────────────────────────────
   postgres:
+    image: logger-db
     build:
       context: .
       dockerfile: Dockerfile.db
-    container_name: ht-logger-postgres
+    container_name: logger-db
     restart: unless-stopped
     command: >
       postgres
@@ -48,7 +51,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
-      - logger-net
+      - logger
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
       interval: 5s
@@ -63,18 +66,18 @@ services:
 
   # ── DB migrations (runs once, applies src/DB/migrations, then exits) ───────
   migrate:
-    image: ht-logger:local
+    image: logger-app
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
-    container_name: ht-logger-migrate
+    container_name: logger-migrate
     restart: "no"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
     networks:
-      - logger-net
+      - logger
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,16 +92,16 @@ services:
       ]
 
   app:
-    image: ht-logger:local
+    image: logger-app
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
-    container_name: ht-logger-app
+    container_name: logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: ${PORT:-8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
       PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-2}
@@ -114,8 +117,12 @@ services:
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - app_data:/usr/src/app/data
+      - ./src:/usr/src/app/src
+    command: ["npx", "tsx", "watch", "src/server.ts"]
     networks:
-      - logger-net
+      - logger
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,15 +146,9 @@ services:
           cpus: '0.5'
           memory: 256m
 
-  # ── Load test (local; profile load-test — not started by default) ─────────
   load-test:
-    image: ht-logger:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PORT: ${PORT:-8080}
-    container_name: ht-logger-load-test
+    image: logger-app
+    container_name: logger-load
     restart: "no"
     profiles: ["load-test"]
     environment:
@@ -163,9 +164,11 @@ services:
       WARMUP_SEC: ${WARMUP_SEC:-5}
       HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
       PACE_FACTOR: ${PACE_FACTOR:-1.05}
+    volumes:
+      - ./load-test:/usr/src/app/load-test
     networks:
-      - logger-net
+      - logger
     depends_on:
       app:
         condition: service_healthy
-    entrypoint: ["node", "dist-load-test/run.js"]
+    entrypoint: ["npx", "tsx", "load-test/run.ts"]
