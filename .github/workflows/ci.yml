@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master,feature/load-test/per-83.97]
   pull_request:
 
 concurrency:
