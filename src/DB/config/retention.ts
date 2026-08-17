@@ -1,4 +1,4 @@
-import { writePool } from './client.js';
+import { writePool } from '../client.js';
 
 /**
  * Sole writer of the drop window. Migration 002 only creates partitions

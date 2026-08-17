@@ -1,5 +1,14 @@
 name: logger
 
+# Compose interpolates ${VAR} from this directory's `.env` (if present).
+# `${VAR:-default}` keeps `docker compose up` valid with no `.env`.
+# Docker-network exceptions (not copied from host-local `.env`):
+#   DATABASE_URL host is always `postgres`
+#   load-test BASE_URL is always http://app:${PORT}
+#   app NODE_ENV is always production
+
+x-database-url: &database-url "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}"
+
 networks:
   logger:
     driver: bridge
@@ -22,9 +31,9 @@ services:
     command: >
       postgres
         -c shared_preload_libraries=pg_partman_bgw
-        -c pg_partman_bgw.dbname=log_ingestion_db
+        -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
         -c pg_partman_bgw.interval=3600
-        -c pg_partman_bgw.role=postgres
+        -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
         -c max_connections=50
         -c shared_buffers=256MB
         -c effective_cache_size=768MB
@@ -44,17 +53,21 @@ services:
         -c max_parallel_workers=0
         -c max_parallel_maintenance_workers=0
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: your_password_here
-      POSTGRES_DB: log_ingestion_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_password_here}
+      POSTGRES_DB: ${POSTGRES_DB:-log_ingestion_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - logger
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d log_ingestion_db"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -72,11 +85,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: 8080
+        PORT: ${PORT:-8080}
     container_name: logger-migrate
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://postgres:your_password_here@postgres:5432/log_ingestion_db
+      DATABASE_URL: *database-url
     networks:
       - logger
     depends_on:
@@ -98,27 +111,26 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: 8080
+        PORT: ${PORT:-8080}
     container_name: logger-app
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: "8080"
-      DATABASE_URL: postgresql://postgres:your_password_here@postgres:5432/log_ingestion_db
-      PG_WRITE_POOL_MAX: "1"
-      PG_QUERY_POOL_MAX: "2"
-      PG_AGGREGATE_POOL_MAX: "2"
-      PG_IDLE_TIMEOUT_MS: "30000"
-      PG_CONNECTION_TIMEOUT_MS: "15000"
-      INGEST_BUFFER_ENABLED: "true"
-      FLUSH_INTERVAL_MS: "5"
-      FLUSH_BATCH_SIZE: "4000"
-      FLUSH_CONCURRENCY: "1"
-      QUEUE_MAX_SIZE: "100000"
-      # pg_partman drop window; applied at app startup (default 30)
-      RETENTION_DAYS: "30"
+      PORT: ${PORT:-8080}
+      DATABASE_URL: *database-url
+      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-1}
+      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-2}
+      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-2}
+      PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
+      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
+      INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
+      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-5}
+      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-4000}
+      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-1}
+      QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-100000}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     volumes:
       - app_data:/usr/src/app/data
     command: ["node", "dist/server.js"]
@@ -153,7 +165,18 @@ services:
     restart: "no"
     profiles: ["load-test"]
     environment:
-      BASE_URL: http://app:8080
+      BASE_URL: http://app:${PORT:-8080}
+      TARGET_LOGS_PER_SEC: ${TARGET_LOGS_PER_SEC:-15000}
+      TOTAL_LOGS: ${TOTAL_LOGS:-1000000}
+      BATCH_SIZE: ${BATCH_SIZE:-500}
+      CONCURRENCY: ${CONCURRENCY:-32}
+      AGGREGATE_INTERVAL_MS: ${AGGREGATE_INTERVAL_MS:-1000}
+      QUERY_INTERVAL_MS: ${QUERY_INTERVAL_MS:-2000}
+      VISIBILITY_DEADLINE_MS: ${VISIBILITY_DEADLINE_MS:-20000}
+      AGGREGATE_P95_MAX_MS: ${AGGREGATE_P95_MAX_MS:-1000}
+      WARMUP_SEC: ${WARMUP_SEC:-5}
+      HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
+      PACE_FACTOR: ${PACE_FACTOR:-1.05}
     volumes:
       - ./load-test:/usr/src/app/load-test
     networks:

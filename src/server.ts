@@ -1,5 +1,5 @@
 import { endPools } from './DB/client.js';
-import { applyRetentionPolicy } from './DB/retention.js';
+import { applyRetentionPolicy } from './DB/config/retention.js';
 import { ingestBuffer } from './services/ingest-buffer.js';
 import { buildApp } from './app.js';
 import { config } from './config.js';

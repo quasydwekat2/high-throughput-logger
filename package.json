@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/server.js",
+    "test:contract": "tsx scripts/contract-smoke.ts",
     "docker:up": "docker compose up --build -d postgres migrate app",
     "docker:down": "docker compose down",
     "test-load:docker": "docker compose --profile load-test run --rm load-test",

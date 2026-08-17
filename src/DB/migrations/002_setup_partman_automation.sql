@@ -13,7 +13,7 @@ BEGIN
             p_parent_table  => 'public.logs',
             p_control       => 'timestamp',
             p_interval      => '30 days',
-            p_premake       => 2
+            p_premake       => 1
         );
     END IF;
 END$$;
