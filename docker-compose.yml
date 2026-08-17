@@ -115,6 +115,7 @@ services:
       FLUSH_BATCH_SIZE: "4000"
       FLUSH_CONCURRENCY: "1"
       QUEUE_MAX_SIZE: "100000"
+      # pg_partman drop window; applied at app startup (default 30)
       RETENTION_DAYS: "30"
     ports:
       - "8080:8080"

@@ -26,6 +26,15 @@ export const config = {
   flushConcurrency: parseInt(process.env.FLUSH_CONCURRENCY ?? '1', 10),
   queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? '100000', 10),
 
-  /** Retention window used as default query bound for partition pruning (days). */
-  retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),
+  /**
+   * How long to keep log partitions. Applied to pg_partman at startup.
+   * Default 30 days. Invalid or non-positive values fall back to 30.
+   */
+  retentionDays: parseRetentionDays(process.env.RETENTION_DAYS),
 };
+
+function parseRetentionDays(raw: string | undefined): number {
+  const n = parseInt(raw ?? '30', 10);
+  if (!Number.isFinite(n) || n < 1) return 30;
+  return n;
+}

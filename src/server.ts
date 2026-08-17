@@ -1,9 +1,12 @@
 import { endPools } from './DB/client.js';
+import { applyRetentionPolicy } from './DB/retention.js';
 import { ingestBuffer } from './services/ingest-buffer.js';
 import { buildApp } from './app.js';
 import { config } from './config.js';
 
-function start(): void {
+async function start(): Promise<void> {
+  await applyRetentionPolicy(config.retentionDays);
+
   if (config.ingestBufferEnabled) {
     ingestBuffer.start();
   }
@@ -33,9 +36,7 @@ function start(): void {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-try {
-  start();
-} catch (err) {
+void start().catch((err) => {
   console.error('failed to start server:', err);
   process.exit(1);
-}
+});
