@@ -60,6 +60,15 @@ export type IngestStrategyName = 'copy' | 'unnest' | 'row-by-row';
 /** Shared contract every ingest strategy must implement. */
 export type InsertLogsStrategy = (logs: LogEntry[]) => Promise<void>;
 
+/** Pre-encoded COPY payload + rollup rows (built while a previous COPY runs). */
+export interface EncodedCopyPayload {
+  payload: string;
+  rollupTimeBuckets: Date[];
+  rollupServices: string[];
+  rollupLevels: string[];
+  rollupCounts: number[];
+}
+
 // ─── GET /logs (Query & Cursor Pagination Contract) ───────────────────────────
 
 /** Raw GET /logs query-string contract (all values arrive as strings). */
@@ -79,6 +88,16 @@ export interface QueryLogsParams {
 export interface QueryLogsResponse {
   logs: StoredLogEntry[];
   next_cursor: string | null;
+}
+
+/** Row shape returned by GET /logs SQL (ts_iso preserves microseconds). */
+export interface QueryLogRow {
+  id: string;
+  ts_iso: string;
+  level: string;
+  service: string;
+  message: string;
+  attributes: LogAttributes;
 }
 
 /** Decoded Base64URL cursor payload */
@@ -131,6 +150,13 @@ export interface AggregateBucket {
 
 export interface AggregateLogsResponse {
   buckets: AggregateBucket[];
+}
+
+/** Row shape returned by GET /logs/aggregate SQL. */
+export interface AggregateQueryRow {
+  start: Date;
+  group: string | null;
+  count: number;
 }
 
 /** Parsed GET /logs/aggregate params ready for the repository */

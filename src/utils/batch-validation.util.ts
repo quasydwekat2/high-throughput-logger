@@ -103,15 +103,7 @@ export function validateLogBatch(logs: unknown[]): ValidationResult {
       }
     }
 
-    accepted.push({
-      timestamp: ts,
-      level: log.level as LogEntry['level'],
-      service: log.service,
-      message: log.message,
-      ...(log.attributes !== undefined
-        ? { attributes: log.attributes as LogEntry['attributes'] }
-        : {}),
-    });
+    accepted.push(log as unknown as LogEntry);
   }
 
   return { accepted, rejected };

@@ -1,4 +1,4 @@
-# Local/dev image. App watch + bind-mounts are in docker-compose.yml (app service).
+# Benchmark/runtime image: compile TypeScript, run node (no tsx watch).
 FROM node:22-alpine
 
 WORKDIR /usr/src/app
@@ -8,10 +8,11 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+RUN npx tsc
 
 ARG PORT=8080
 EXPOSE ${PORT}
 
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
-CMD ["npx", "tsx", "src/server.ts"]
+CMD ["node", "dist/server.js"]

@@ -2,6 +2,7 @@ import { aggregatePool } from '../../DB/client.js';
 import type {
   ParsedAggregateParams,
   AggregateBucket,
+  AggregateQueryRow,
   BucketSize,
 } from '../../types/log.types.js';
 import { pushAttrContainment } from '../../utils/attr-filter.util.js';
@@ -67,13 +68,9 @@ async function aggregateFromRollups(
       ORDER BY 1 ASC
     `;
 
-  const result = await aggregatePool.query<{
-    start: Date;
-    group: string | null;
-    count: number;
-  }>(sql, values);
+  const result = await aggregatePool.query<AggregateQueryRow>(sql, values);
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row: AggregateQueryRow) => ({
     start: row.start.toISOString(),
     group: row.group,
     count: row.count,
@@ -129,13 +126,9 @@ async function aggregateFromLogs(
       ORDER BY 1 ASC
     `;
 
-  const result = await aggregatePool.query<{
-    start: Date;
-    group: string | null;
-    count: number;
-  }>(sql, values);
+  const result = await aggregatePool.query<AggregateQueryRow>(sql, values);
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row: AggregateQueryRow) => ({
     start: row.start.toISOString(),
     group: row.group,
     count: row.count,

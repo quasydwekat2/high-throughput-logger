@@ -9,9 +9,12 @@ function start(): void {
   }
 
   const app = buildApp();
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, '0.0.0.0', () => {
     console.log(`listening on :${config.port} (${config.nodeEnv})`);
   });
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+  server.requestTimeout = 0;
 
   const shutdown = (signal: string) => {
     console.log(`${signal} received, shutting down…`);

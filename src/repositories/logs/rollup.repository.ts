@@ -1,45 +1,15 @@
 import type { PoolClient } from 'pg';
-import type { LogEntry } from '../../types/log.types.js';
-
-function minuteBucketUtc(iso: string): Date {
-  const d = new Date(iso);
-  d.setUTCSeconds(0, 0);
-  d.setUTCMilliseconds(0);
-  return d;
-}
+import type { EncodedCopyPayload } from '../../types/log.types.js';
 
 /**
- * Increment per-minute (service, level) counts for a COPY batch.
+ * Persist pre-aggregated per-minute (service, level) counts.
  * Must run on the same client/transaction as the COPY.
  */
-export async function upsertMinuteRollups(
+export async function upsertMinuteRollupRows(
   client: PoolClient,
-  logs: LogEntry[],
+  encoded: EncodedCopyPayload,
 ): Promise<void> {
-  if (logs.length === 0) return;
-
-  const counts = new Map<
-    string,
-    { time_bucket: Date; service: string; level: string; log_count: number }
-  >();
-
-  for (const log of logs) {
-    const time_bucket = minuteBucketUtc(log.timestamp);
-    const key = `${time_bucket.toISOString()}\0${log.service}\0${log.level}`;
-    const row = counts.get(key);
-    if (row) {
-      row.log_count += 1;
-    } else {
-      counts.set(key, {
-        time_bucket,
-        service: log.service,
-        level: log.level,
-        log_count: 1,
-      });
-    }
-  }
-
-  const rows = [...counts.values()];
+  if (encoded.rollupCounts.length === 0) return;
   await client.query(
     `INSERT INTO minute_rollups (time_bucket, service, level, log_count)
      SELECT * FROM unnest(
@@ -51,10 +21,10 @@ export async function upsertMinuteRollups(
      ON CONFLICT (time_bucket, service, level)
      DO UPDATE SET log_count = minute_rollups.log_count + EXCLUDED.log_count`,
     [
-      rows.map((r) => r.time_bucket),
-      rows.map((r) => r.service),
-      rows.map((r) => r.level),
-      rows.map((r) => r.log_count),
+      encoded.rollupTimeBuckets,
+      encoded.rollupServices,
+      encoded.rollupLevels,
+      encoded.rollupCounts,
     ],
   );
 }

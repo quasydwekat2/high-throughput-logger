@@ -3,8 +3,8 @@ import type {
   ParsedQueryParams,
   StoredLogEntry,
   QueryLogsResponse,
+  QueryLogRow,
   LogLevel,
-  LogAttributes,
 } from '../../types/log.types.js';
 import { encodeCursor } from '../../utils/cursor-pagination.util.js';
 import { pushAttrContainment } from '../../utils/attr-filter.util.js';
@@ -43,7 +43,7 @@ export async function queryLogs(
   }
   n = pushAttrContainment(conditions, values, n, params.attrs);
 
-  // Next page in (timestamp DESC, id DESC): row comparison uses idx_logs_ts_id.
+  // Next page in (timestamp DESC, id DESC): PK (timestamp, id) backward scan.
   if (params.cursor) {
     const tsPos = n++;
     const idPos = n++;
@@ -64,16 +64,9 @@ export async function queryLogs(
     LIMIT ${fetchLimit}
   `;
 
-  const result = await queryPool.query<{
-    id: string;
-    ts_iso: string;
-    level: string;
-    service: string;
-    message: string;
-    attributes: LogAttributes;
-  }>(sql, values);
+  const result = await queryPool.query<QueryLogRow>(sql, values);
 
-  const rows = result.rows;
+  const rows: QueryLogRow[] = result.rows;
   let next_cursor: string | null = null;
 
   if (rows.length > params.limit) {
@@ -82,7 +75,7 @@ export async function queryLogs(
     next_cursor = encodeCursor(last.ts_iso, String(last.id));
   }
 
-  const logs: StoredLogEntry[] = rows.map((row) => ({
+  const logs: StoredLogEntry[] = rows.map((row: QueryLogRow) => ({
     id: String(row.id),
     timestamp: row.ts_iso,
     level: row.level as LogLevel,

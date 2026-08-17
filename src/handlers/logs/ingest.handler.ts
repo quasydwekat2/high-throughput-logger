@@ -3,10 +3,7 @@ import { config } from '../../config.js';
 import { validateLogBatch } from '../../utils/batch-validation.util.js';
 import { insertLogs } from '../../repositories/logs/ingest.repository.js';
 import { ingestBuffer } from '../../services/ingest-buffer.js';
-import {
-  IngestRejectedError,
-  ValidationError,
-} from '../../types/app-error.js';
+import { IngestRejectedError, ValidationError } from '../../types/app-error.js';
 import type {
   IngestLogsRequest,
   IngestLogsResponse,

@@ -22,21 +22,21 @@ services:
     command: >
       postgres
         -c shared_preload_libraries=pg_partman_bgw
-        -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
+        -c pg_partman_bgw.dbname=log_ingestion_db
         -c pg_partman_bgw.interval=3600
-        -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
+        -c pg_partman_bgw.role=postgres
         -c max_connections=50
         -c shared_buffers=256MB
         -c effective_cache_size=768MB
         -c maintenance_work_mem=64MB
         -c work_mem=8MB
         -c wal_buffers=16MB
-        -c gin_pending_list_limit=8MB
+        -c gin_pending_list_limit=16MB
         -c min_wal_size=128MB
         -c max_wal_size=2GB
         -c checkpoint_timeout=15min
         -c checkpoint_completion_target=0.9
-        -c wal_compression=on
+        -c wal_compression=off
         -c synchronous_commit=off
         -c random_page_cost=1.1
         -c timezone=UTC
@@ -44,9 +44,9 @@ services:
         -c max_parallel_workers=0
         -c max_parallel_maintenance_workers=0
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_password_here}
-      POSTGRES_DB: ${POSTGRES_DB:-log_ingestion_db}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_password_here
+      POSTGRES_DB: log_ingestion_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -54,7 +54,7 @@ services:
     networks:
       - logger
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d log_ingestion_db"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -76,8 +76,7 @@ services:
     container_name: logger-migrate
     restart: "no"
     environment:
-      # localhost in .env is for host-local npm; inside Compose the DB host is the service name.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-your_password_here}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-log_ingestion_db}
+      DATABASE_URL: postgresql://postgres:your_password_here@postgres:5432/log_ingestion_db
     networks:
       - logger
     depends_on:
@@ -103,26 +102,25 @@ services:
     container_name: logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
       PORT: "8080"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-your_password_here}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-log_ingestion_db}
-      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-2}
-      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-2}
-      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-2}
-      PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
-      PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
-      INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-25}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-8000}
-      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-1}
-      QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
-      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      DATABASE_URL: postgresql://postgres:your_password_here@postgres:5432/log_ingestion_db
+      PG_WRITE_POOL_MAX: "1"
+      PG_QUERY_POOL_MAX: "2"
+      PG_AGGREGATE_POOL_MAX: "2"
+      PG_IDLE_TIMEOUT_MS: "30000"
+      PG_CONNECTION_TIMEOUT_MS: "15000"
+      INGEST_BUFFER_ENABLED: "true"
+      FLUSH_INTERVAL_MS: "5"
+      FLUSH_BATCH_SIZE: "4000"
+      FLUSH_CONCURRENCY: "1"
+      QUEUE_MAX_SIZE: "100000"
+      RETENTION_DAYS: "30"
     ports:
       - "8080:8080"
     volumes:
       - app_data:/usr/src/app/data
-      - ./src:/usr/src/app/src
-    command: ["npx", "tsx", "watch", "src/server.ts"]
+    command: ["node", "dist/server.js"]
     networks:
       - logger
     depends_on:

@@ -10,7 +10,7 @@ export const config = {
   databaseUrl:
     process.env.DATABASE_URL ??
     'postgresql://postgres:your_password_here@localhost:5432/log_ingestion_db',
-  pgWritePoolMax: parseInt(process.env.PG_WRITE_POOL_MAX ?? '2', 10),
+  pgWritePoolMax: parseInt(process.env.PG_WRITE_POOL_MAX ?? '1', 10),
   pgQueryPoolMax: parseInt(process.env.PG_QUERY_POOL_MAX ?? '2', 10),
   pgAggregatePoolMax: parseInt(process.env.PG_AGGREGATE_POOL_MAX ?? '2', 10),
   pgIdleTimeoutMs: parseInt(process.env.PG_IDLE_TIMEOUT_MS ?? '30000', 10),
@@ -21,10 +21,10 @@ export const config = {
 
   // enqueue() awaits durable flush — coalesces concurrent POSTs into bulk COPY.
   ingestBufferEnabled: process.env.INGEST_BUFFER_ENABLED !== 'false',
-  flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? '25', 10),
-  flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? '8000', 10),
+  flushIntervalMs: parseInt(process.env.FLUSH_INTERVAL_MS ?? '5', 10),
+  flushBatchSize: parseInt(process.env.FLUSH_BATCH_SIZE ?? '4000', 10),
   flushConcurrency: parseInt(process.env.FLUSH_CONCURRENCY ?? '1', 10),
-  queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? '500000', 10),
+  queueMaxSize: parseInt(process.env.QUEUE_MAX_SIZE ?? '100000', 10),
 
   /** Retention window used as default query bound for partition pruning (days). */
   retentionDays: parseInt(process.env.RETENTION_DAYS ?? '30', 10),

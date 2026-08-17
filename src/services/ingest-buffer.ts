@@ -18,8 +18,8 @@ interface PendingWrite {
  * `enqueue` resolves only after those logs are written to Postgres —
  * never return 200 before durable acceptance.
  *
- * At most `flushConcurrency` COPY operations run in parallel so a 1-CPU
- * Postgres still has headroom for query/aggregate on the read pool.
+ * One COPY at a time: Postgres is 1 CPU. Encode happens, then COPY; during
+ * COPY IO the event loop stays free so GET /logs and /aggregate can run.
  */
 class IngestBuffer {
   private pending: PendingWrite[] = [];
@@ -35,14 +35,9 @@ class IngestBuffer {
       void this.flush();
     }, config.flushIntervalMs);
 
-    // Don't keep the process alive just for the flush timer.
     this.flushTimer.unref?.();
   }
 
-  /**
-   * Enqueue validated logs and wait until they are flushed to Postgres.
-   * Concurrent callers share bulk inserts up to flushConcurrency.
-   */
   enqueue(logs: LogEntry[]): Promise<void> {
     if (logs.length === 0) return Promise.resolve();
 
@@ -57,10 +52,7 @@ class IngestBuffer {
     return new Promise<void>((resolve, reject) => {
       this.pending.push({ logs, resolve, reject });
       this.queuedCount += logs.length;
-
-      if (this.queuedCount >= config.flushBatchSize) {
-        void this.flush();
-      }
+      void this.flush();
     });
   }
 
@@ -97,24 +89,22 @@ class IngestBuffer {
    * Never splits a single waiter's logs across flushes.
    */
   private takeBatch(): { batch: PendingWrite[]; count: number } {
-    const batch: PendingWrite[] = [];
+    const limit = config.flushBatchSize;
     let count = 0;
+    let take = 0;
 
-    while (this.pending.length > 0) {
-      const next = this.pending[0];
-      if (batch.length > 0 && count + next.logs.length > config.flushBatchSize) {
-        break;
-      }
-      this.pending.shift();
-      batch.push(next);
-      count += next.logs.length;
+    while (take < this.pending.length) {
+      const nextLen = this.pending[take].logs.length;
+      if (take > 0 && count + nextLen > limit) break;
+      count += nextLen;
+      take += 1;
     }
 
+    const batch = this.pending.splice(0, take);
     this.queuedCount -= count;
     return { batch, count };
   }
 
-  /** Stop accepting new logs and drain the queue (for graceful shutdown). */
   async stop(): Promise<void> {
     this.closed = true;
 
@@ -128,7 +118,6 @@ class IngestBuffer {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
-    // Anything still pending after a failed flush: reject so callers don't hang.
     if (this.pending.length > 0) {
       const err = new AppError(503, 'ingest buffer shut down before flush');
       for (const w of this.pending) w.reject(err);
