@@ -50,7 +50,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     networks:
       - logger
     healthcheck:
@@ -72,7 +72,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT:-8080}
+        PORT: 8080
     container_name: logger-migrate
     restart: "no"
     environment:
@@ -99,15 +99,15 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT:-8080}
+        PORT: 8080
     container_name: logger-app
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: ${PORT:-8080}
+      PORT: "8080"
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-log_ingestion_db}
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"
+      - "8080:8080"
     volumes:
       - app_data:/usr/src/app/data
       - ./src:/usr/src/app/src
@@ -143,7 +143,7 @@ services:
     restart: "no"
     profiles: ["load-test"]
     environment:
-      BASE_URL: http://app:${PORT:-8080}
+      BASE_URL: http://app:8080
     volumes:
       - ./load-test:/usr/src/app/load-test
     networks:
