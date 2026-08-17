@@ -22,9 +22,9 @@ services:
     command: >
       postgres
         -c shared_preload_libraries=pg_partman_bgw
-        -c pg_partman_bgw.dbname=${POSTGRES_DB}
+        -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
         -c pg_partman_bgw.interval=3600
-        -c pg_partman_bgw.role=${POSTGRES_USER}
+        -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
         -c max_connections=50
         -c shared_buffers=256MB
         -c effective_cache_size=768MB
@@ -43,19 +43,18 @@ services:
         -c max_parallel_workers_per_gather=0
         -c max_parallel_workers=0
         -c max_parallel_maintenance_workers=0
-    env_file: .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-log_ingestion_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - logger
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -73,13 +72,12 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT}
+        PORT: ${PORT:-8080}
     container_name: logger-migrate
     restart: "no"
-    env_file: .env
     environment:
       # localhost in .env is for host-local npm; inside Compose the DB host is the service name.
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-log_ingestion_db}
     networks:
       - logger
     depends_on:
@@ -101,16 +99,15 @@ services:
       context: .
       dockerfile: Dockerfile.dev
       args:
-        PORT: ${PORT}
+        PORT: ${PORT:-8080}
     container_name: logger-app
     restart: unless-stopped
-    env_file: .env
     environment:
-      NODE_ENV: ${NODE_ENV}
-      PORT: ${PORT}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-8080}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-log_ingestion_db}
     ports:
-      - "${PORT}:${PORT}"
+      - "${PORT:-8080}:${PORT:-8080}"
     volumes:
       - app_data:/usr/src/app/data
       - ./src:/usr/src/app/src
@@ -145,9 +142,8 @@ services:
     container_name: logger-load
     restart: "no"
     profiles: ["load-test"]
-    env_file: .env
     environment:
-      BASE_URL: http://app:${PORT}
+      BASE_URL: http://app:${PORT:-8080}
     volumes:
       - ./load-test:/usr/src/app/load-test
     networks:
