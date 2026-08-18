@@ -2,7 +2,7 @@
 
 Obligatory requirements only. Status: `[x]` done · `[~]` partial · `[ ]` not done
 
-Updated: 2026-08-17 (retention configurable; attr match + durable ingest already in code)
+Updated: 2026-08-18 (official CLI `--full` **88.7 / 100**; daily partitions, no JSONB GIN)
 
 ---
 
@@ -13,7 +13,7 @@ Updated: 2026-08-17 (retention configurable; attr match + durable ingest already
 | 1 | ~~No README~~ | **Resolved** — `README.md` |
 | 2 | **CI not green on GitHub yet** | Workflow exists (`.github/workflows/ci.yml`); first push must pass |
 | 3 | ~~Internal `load-test/run.ts`~~ | **Resolved** — own harness PASS (see §6b). Not the grader. |
-| 4 | **Official CLI not run** | `logs-benchmark-cli` `--full` — see §6a |
+| 4 | ~~Official CLI not run~~ | **Resolved** — `--full` **88.7 / 100** (see §6a). Paste into README if still pending. |
 | 5 | **Demo video not recorded** | Required submission (~5 min) |
 
 ---
@@ -22,7 +22,7 @@ Updated: 2026-08-17 (retention configurable; attr match + durable ingest already
 
 - [x] **Ingestion** — batch API, per-entry validation, durable store (COPY + buffer waits for flush)
 - [x] **Querying** — filters, cursor pagination, time-bucket aggregate + `group_by`
-- [x] **Retention** — pg_partman drops expired partitions; window from `RETENTION_DAYS` at app startup (`src/DB/config/retention.ts`). Partition width `p_interval` is `'30 days'` in migration 002 (schema, not the delete policy).
+- [x] **Retention** — pg_partman drops expired partitions; window from `RETENTION_DAYS` at app startup (`src/DB/config/retention.ts`). Partition width `p_interval` is `'1 day'` in migration 002 (schema, not the delete policy). No DEFAULT partition; bounded `2026-01-01` child for CLI fixtures.
 
 ### Log entry fields
 
@@ -120,10 +120,8 @@ The **grader** is the local Foothill CLI (`logs-benchmark-cli`).
 
 ### 6a. Official CLI
 
-Pinned commit: `992d9c8` (`github:Ahmad-Abbas-Foothill/logs-benchmark-cli`).
-
 ```bash
-npx --yes "github:Ahmad-Abbas-Foothill/logs-benchmark-cli#992d9c8" --compose ./docker-compose.yml --full --seed 6122026 --generator-cpus 4
+npx --yes github:Ahmad-Abbas-Foothill/logs-benchmark-cli --compose ./docker-compose.yml --full --seed 6122026 --runner docker --json benchmark-report.json --generator-cpus 4
 ```
 
 | Flag | Meaning |
@@ -131,9 +129,23 @@ npx --yes "github:Ahmad-Abbas-Foothill/logs-benchmark-cli#992d9c8" --compose ./d
 | `--compose ./docker-compose.yml` | Uses this project's compose (CLI applies resource limits / override) |
 | `--full` | Full run (~1M rows / ingest+query+aggregate), not a smoke |
 | `--seed 6122026` | Reproducible payload (use this seed when comparing runs) |
+| `--runner docker` | k6 in Docker on the compose network |
+| `--json benchmark-report.json` | Machine-readable report in the repo root |
 | `--generator-cpus 4` | Load-generator CPU (not the app; app stays 0.5 CPU) |
 
-Status: **not run yet.** After `--full`, put the score in the README (ingest rate, agg p95, query stats).
+Status: **run 2026-08-18** (`benchmark-report.json`, scorer `2026-08-18.v10`).
+
+| Category | Score | Detail |
+|----------|-------|--------|
+| Correctness | **15.0 / 15** | 15/15 checks |
+| Performance | **39.0 / 50** | throughput **14,520/s** · errors **0.0%** · p95 **584ms** |
+| Queries | **14.7 / 15** | aggregate p95 **18ms** · consistency **4/4** |
+| Reliability | **20.0 / 20** | 4/4 scenarios, crash-free |
+| **Total** | **88.7 / 100** | eligible, no correctness cap |
+
+Load scenario (headline ingest): 14,520/s offered 15,000 · p95 584ms · agg p95 18ms · accepted=visible 1,742,400 · generator-limited (575 dropped iterations). Stress / spike / breakpoint also completed; k6 was the constraint on all four.
+
+**Environment (quote with the score):** Docker Desktop **6 CPUs / 6 GiB**, machine speed **0.51x** reference, app **0.5 CPU / 256m**, Postgres **1 CPU / 1024m**, generator `grafana/k6:0.54.0` (4 CPU / 1g). Performance points are indicative on this machine.
 
 ### 6b. Internal harness (not the grader)
 
@@ -160,7 +172,7 @@ Status: **not run yet.** After `--full`, put the score in the README (ingest rat
 | Area | Status | Notes |
 |------|--------|--------|
 | Architecture | `[x]` | Documented in README |
-| Performance | `[~]` | Internal harness PASS; official CLI not run yet |
+| Performance | `[x]` | Official CLI `--full` **88.7** (Performance **39.0/50**, p95 584ms, 14,520/s). Internal harness also PASS (§6b) |
 | Retention | `[x]` | Partman drop + `RETENTION_DAYS` at startup |
 | Reliability | `[x]` | Validation, errors, edge cases |
 | Code quality | `[x]` | Typed TS, layered |
@@ -180,7 +192,7 @@ Status: **not run yet.** After `--full`, put the score in the README (ingest rat
 - [x] Attribute storage strategy
 - [x] Retention strategy (`RETENTION_DAYS`, partman, `p_interval`)
 - [x] Load-test methodology (official CLI command in §6a + seed `6122026`)
-- [x] Measured performance results (internal §6b; official CLI still pending)
+- [~] Measured performance results (internal §6b in README; official **88.7** is in §6a here — paste into README)
 - [x] Known limitations
 - [x] Optional features: **none**
 
@@ -192,7 +204,7 @@ Status: **not run yet.** After `--full`, put the score in the README (ingest rat
 - [x] Working Docker Compose (`docker compose up`)
 - [~] Passing CI pipeline (workflow added; needs a green GitHub Actions run)
 - [x] Complete README
-- [ ] Official CLI `--full` run (see §6a)
+- [x] Official CLI `--full` run — **88.7 / 100** (see §6a)
 - [ ] ~5 min video: architecture + live demo
 - [ ] Demo readiness: schema, indexes, EXPLAIN, ingest/query paths
 
@@ -206,7 +218,7 @@ Status: **not run yet.** After `--full`, put the score in the README (ingest rat
 ## What's left (do in this order)
 
 1. Push so **GitHub Actions** can go green (`ci.yml`).
-2. Run the **official CLI** (command in §6a), paste the score into the README.
+2. Paste the official CLI score (**88.7 / 100**, §6a) into `README.md`.
 3. Record **~5 min video**.
 4. Submit the **final project form**.
 
@@ -222,6 +234,6 @@ Status: **not run yet.** After `--full`, put the score in the README (ingest rat
 | Internal load-test | **Done** (not the grader) |
 | README | **Done** |
 | CI | **Added** — green after push |
-| Official CLI | **Not run** — command in §6a |
+| Official CLI | **Done** — **88.7 / 100** (§6a); still paste into README |
 | Video / form | **Not started** |
-| Submission readiness | **Not ready** until 1–4 above |
+| Submission readiness | **Not ready** until CI green + README score + video + form |

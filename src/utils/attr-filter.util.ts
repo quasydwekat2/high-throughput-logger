@@ -2,8 +2,9 @@
  * attr.<key> filters for GET /logs and /logs/aggregate.
  *
  * Spec: compared as strings. Stored JSON may be string, number, or boolean
- * (e.g. retries: 3 vs attr.retries=3). Uses @> so idx_logs_attrs_path_ops
- * (jsonb_path_ops) can serve the filter.
+ * (e.g. retries: 3 vs attr.retries=3). Uses @> (containment). There is no
+ * GIN on attributes: unknown keys would need one, but ingest COPY on 1 CPU
+ * cannot afford to maintain it. Partition pruning keeps attr scans bounded.
  */
 export function pushAttrContainment(
   conditions: string[],

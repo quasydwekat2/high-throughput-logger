@@ -1,7 +1,7 @@
 -- ============================================================
 -- Migration 003 — Single composite btree (write-cheap on 1 CPU)
 -- PK (timestamp, id) already exists on logs.
--- GIN jsonb_path_ops for attr @> is in 005.
+-- No GIN on attributes: see 005.
 -- ============================================================
 
 CREATE INDEX IF NOT EXISTS idx_logs_service_level_ts

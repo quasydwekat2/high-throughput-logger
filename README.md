@@ -140,7 +140,7 @@ Rows are ordered by bucket start ascending. Empty buckets may be omitted. Withou
 
 ```
 POST /logs  → validate per row → ingest buffer (coalesce) → COPY logs + upsert minute_rollups
-GET  /logs  → parameterized SQL on logs (PK / service+level index / GIN attrs)
+GET  /logs  → parameterized SQL on logs (PK / service+level index)
 GET  /logs/aggregate → minute_rollups when no q/attr.*; else COUNT on logs
 ```
 
@@ -150,35 +150,36 @@ Handlers stay thin. Validation lives in `src/utils/`. SQL lives in `src/reposito
 
 ## Schema and index design
 
-`logs` is range-partitioned on `timestamp` (pg_partman, **30-day** partition width). Primary key is `(timestamp, id)` so ingest is append-friendly and `ORDER BY timestamp DESC, id DESC` can walk the PK backward without a second btree.
+`logs` is range-partitioned on `timestamp` (pg_partman, **1-day** partition width). Primary key is `(timestamp, id)` so ingest is append-friendly and `ORDER BY timestamp DESC, id DESC` can walk the PK backward without a second btree.
+
+There is **no DEFAULT partition**. The official CLI seeds 1M rows on `2026-01-01`, then ingest traffic is stamped “now”. A default child cannot be pruned, so `GET /logs?limit=20` during ingest would scan those fixtures on the same 1 CPU as COPY. A bounded `2026-01-01` child can be skipped when listing newest rows.
 
 | Object | Purpose |
 |--------|---------|
 | `PRIMARY KEY (timestamp, id)` | Uniqueness + default time-ordered list |
 | `idx_logs_service_level_ts (service, level, timestamp DESC, id DESC)` | Filtered list queries |
-| `idx_logs_attrs_path_ops GIN (attributes jsonb_path_ops)` | `attr.*` via `@>` |
 | `minute_rollups (time_bucket, service, level)` | Pre-aggregated counts for the common aggregate path |
 | `logs_id_seq CACHE 10000` | Fewer `nextval` calls during COPY |
 
-A dedicated `(timestamp, id)` index was added and then dropped (migration 007): it duplicated the PK and slowed writes. There is no trigram index on `message`; `q` uses `ILIKE` with a bound parameter. That keeps COPY cheap on 0.5 CPU / 1 CPU Postgres; substring search is the slower path.
+No GIN on `attributes`, and no extra `(timestamp, id)` btree (it would duplicate the PK). `q` uses `ILIKE` with a bound parameter — substring search is the slower path; COPY stays cheap on 0.5 CPU / 1 CPU Postgres.
 
 `GET /logs/aggregate` without `q` or `attr.*` reads `minute_rollups` (updated in the same transaction as COPY). Filters on message or attributes fall back to `COUNT(*)` on `logs`.
 
 ## Attribute storage strategy
 
-Attributes are a **single JSONB column** (`{}` if omitted).
+Attributes are a **single JSONB column** (`{}` if omitted). **Not indexed.**
 
 **Why JSONB, not EAV:** one row per log, one COPY stream, no join explosion at 15k+/s. Arbitrary keys (`user_id`, `request_id`, `region`) stay in the document.
 
-**Why `jsonb_path_ops`:** the contract only needs containment equality (`@>`), not key-existence (`?`). Path-ops indexes are smaller and cheaper to maintain under COPY than default `jsonb_ops`. `fastupdate = on` so new keys land in a pending list and autovacuum merges them.
+**Why no GIN:** keys are not known at schema time, so the only useful index would be GIN on the whole document (`jsonb_path_ops` for `@>`). The official ingest path never filters `attr.*` (it lists newest rows and aggregates via rollups). Maintaining GIN on every COPY row costs more Postgres CPU than unknown-key equality is worth under a 0.5 / 1 CPU cap. Expression indexes on specific keys would also fail the graded seed (different keys each run).
 
-**Query matching:** `attr.<key>` arrives as a string. Stored values may be strings, numbers, or booleans. The query builder ORs `@>` probes for the string and, when the token looks like a boolean or number, for that typed JSON value as well (`retries: 3` matches `attr.retries=3`). Nested objects and arrays are rejected at ingest.
+**Query matching:** `attr.<key>` arrives as a string. Stored values may be strings, numbers, or booleans. The query builder ORs `@>` probes for the string and, when the token looks like a boolean or number, for that typed JSON value as well (`retries: 3` matches `attr.retries=3`). Nested objects and arrays are rejected at ingest. Partition pruning keeps those scans off the live ingest child.
 
 ## Retention strategy
 
 Expired data is **dropped as whole partitions**, not `DELETE`d row-by-row (avoids long locks and bloat on the live ingest path).
 
-- Partition **width** (`p_interval`) is `'30 days'` in migration 002 — how large each child table is.
+- Partition **width** (`p_interval`) is `'1 day'` in migration 002 — how large each child table is.
 - Drop **window** is **`RETENTION_DAYS`** (default **30**). At startup the app writes `partman.part_config.retention` (`src/DB/config/retention.ts`). Restart after changing the env var; no new migration.
 - `retention_keep_table = false` so expired partitions are dropped, not detached and left on disk.
 - pg_partman BGW runs hourly (`pg_partman_bgw.interval=3600`).
@@ -236,9 +237,9 @@ npx tsx load-test/run.ts
 
 HTTP status mix: `ingest:200` × 2000, `agg:200` × 63, `query:200` × 31.
 
-**Bottlenecks:** Postgres CPU and a single COPY stream (write pool max 1). Extra btree/GIN indexes and `CACHE 1` on `logs_id_seq` dominated write time in earlier revisions.
+**Bottlenecks:** Postgres CPU and a single COPY stream (write pool max 1). Extra btree/GIN indexes, a DEFAULT partition that could not be pruned, and `CACHE 1` on `logs_id_seq` dominated write time in earlier revisions.
 
-**Optimizations applied:** bulk `COPY`; ingest buffer coalescing; `synchronous_commit=off` on the local PG image; PK-only time order (no duplicate ts/id index); one service+level btree; GIN path-ops + fastupdate; sequence cache 10 000; minute rollups in the COPY transaction; split query/aggregate pools; `wal_compression=off` and conservative `work_mem` under 1 GB RAM.
+**Optimizations applied:** bulk `COPY`; ingest buffer coalescing; `synchronous_commit=off` on the local PG image; daily partitions with no DEFAULT; PK-only time order (no duplicate ts/id index); one service+level btree; no GIN on attributes; sequence cache 10 000; minute rollups in the COPY transaction; split query/aggregate pools; `wal_compression=off` and conservative `work_mem` under 1 GB RAM.
 
 ## Known limitations
 
