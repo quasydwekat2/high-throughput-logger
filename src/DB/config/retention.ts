@@ -18,5 +18,27 @@ export async function applyRetentionPolicy(days: number): Promise<void> {
     );
   }
 
+  await ensureLogPartitions(days);
   console.log(`retention policy: ${days} days (partman drop expired partitions)`);
+}
+
+/**
+ * Premake children covering the retention window plus a few future days.
+ * Without a DEFAULT partition, COPY of any in-window timestamp must have
+ * a child or it 500s (and the internal harness spreads ~30 days).
+ */
+async function ensureLogPartitions(days: number): Promise<void> {
+  await writePool.query(
+    `SELECT partman.create_partition_time(
+       'public.logs',
+       ARRAY(
+         SELECT generate_series(
+           date_trunc('day', now() - ($1::int * interval '1 day')),
+           date_trunc('day', now() + interval '4 days'),
+           interval '1 day'
+         )
+       )
+     )`,
+    [days],
+  );
 }

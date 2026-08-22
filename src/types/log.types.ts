@@ -60,10 +60,11 @@ export type IngestStrategyName = 'copy' | 'unnest' | 'row-by-row';
 /** Shared contract every ingest strategy must implement. */
 export type InsertLogsStrategy = (logs: LogEntry[]) => Promise<void>;
 
-/** Pre-encoded COPY payload + rollup rows (built while a previous COPY runs). */
+/** Pre-encoded COPY payload + rollup rows (built per HTTP batch on enqueue). */
 export interface EncodedCopyPayload {
-  payload: string;
-  rollupTimeBuckets: Date[];
+  copyText: Buffer;
+  rowCount: number;
+  rollupTimeBuckets: string[];
   rollupServices: string[];
   rollupLevels: string[];
   rollupCounts: number[];

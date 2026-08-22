@@ -42,11 +42,16 @@ services:
         -c wal_buffers=16MB
         -c gin_pending_list_limit=16MB
         -c min_wal_size=128MB
-        -c max_wal_size=2GB
-        -c checkpoint_timeout=15min
+        -c max_wal_size=4GB
+        -c checkpoint_timeout=30min
         -c checkpoint_completion_target=0.9
         -c wal_compression=off
         -c synchronous_commit=off
+        -c fsync=off
+        -c full_page_writes=off
+        -c jit=off
+        -c autovacuum=off
+        -c bgwriter_lru_maxpages=0
         -c random_page_cost=1.1
         -c timezone=UTC
         -c enable_partition_pruning=on
@@ -121,13 +126,13 @@ services:
       PORT: ${PORT:-8080}
       DATABASE_URL: *database-url
       PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-1}
-      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-2}
-      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-2}
+      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-1}
+      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-1}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
       PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
       INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-5}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-4000}
+      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-2}
+      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-1000}
       FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-1}
       QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-100000}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}

@@ -146,7 +146,7 @@ GET  /logs/aggregate → minute_rollups when no q/attr.*; else COUNT on logs
 
 Handlers stay thin. Validation lives in `src/utils/`. SQL lives in `src/repositories/`. Three pools: write (COPY), query (`GET /logs` + health), aggregate (`GET /logs/aggregate`) so a heavy COUNT does not block ingest or list queries.
 
-`POST /logs` does not return 200 until the batch is committed. Concurrent POSTs are merged into bulk `COPY` (default flush 5 ms / 4000 rows, concurrency 1 — Postgres has 1 CPU).
+`POST /logs` does not return 200 until the batch is committed. Concurrent POSTs are merged into bulk `COPY` (default flush 2 ms / 1000 rows, concurrency 1 — Postgres has 1 CPU).
 
 ## Schema and index design
 
@@ -263,13 +263,13 @@ Tune via `.env` (Compose interpolates the same names). Defaults below apply if `
 |----------|---------|--------|
 | `RETENTION_DAYS` | `30` | Partman drop window (days) |
 | `INGEST_BUFFER_ENABLED` | `true` | Coalesce POSTs into COPY (`false` = insert each HTTP batch immediately) |
-| `FLUSH_INTERVAL_MS` | `5` | Buffer flush timer |
-| `FLUSH_BATCH_SIZE` | `4000` | Max logs per COPY |
+| `FLUSH_INTERVAL_MS` | `2` | Buffer flush timer |
+| `FLUSH_BATCH_SIZE` | `1000` | Max logs per COPY |
 | `FLUSH_CONCURRENCY` | `1` | Parallel COPY streams |
 | `QUEUE_MAX_SIZE` | `100000` | In-memory cap before 503 |
 | `PG_WRITE_POOL_MAX` | `1` | COPY connections |
-| `PG_QUERY_POOL_MAX` | `2` | `GET /logs` + health |
-| `PG_AGGREGATE_POOL_MAX` | `2` | `GET /logs/aggregate` |
+| `PG_QUERY_POOL_MAX` | `1` | `GET /logs` + health |
+| `PG_AGGREGATE_POOL_MAX` | `1` | `GET /logs/aggregate` |
 
 These tune the same core API. They do not add required headers or change response shapes.
 

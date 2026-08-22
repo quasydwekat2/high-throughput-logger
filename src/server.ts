@@ -1,8 +1,13 @@
+import http from 'node:http';
 import { endPools } from './DB/client.js';
 import { applyRetentionPolicy } from './DB/config/retention.js';
 import { ingestBuffer } from './services/ingest-buffer.js';
 import { buildApp } from './app.js';
 import { config } from './config.js';
+import {
+  handleIngestHttp,
+  isIngestUrl,
+} from './handlers/logs/ingest.handler.js';
 
 async function start(): Promise<void> {
   await applyRetentionPolicy(config.retentionDays);
@@ -12,12 +17,24 @@ async function start(): Promise<void> {
   }
 
   const app = buildApp();
-  const server = app.listen(config.port, '0.0.0.0', () => {
-    console.log(`listening on :${config.port} (${config.nodeEnv})`);
+  const server = http.createServer((req, res) => {
+    if (req.method === 'POST' && isIngestUrl(req.url)) {
+      void handleIngestHttp(req, res);
+      return;
+    }
+    app(req, res);
   });
+
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
   server.requestTimeout = 0;
+  server.on('connection', (socket) => {
+    socket.setNoDelay(true);
+  });
+
+  server.listen(config.port, '0.0.0.0', () => {
+    console.log(`listening on :${config.port} (${config.nodeEnv})`);
+  });
 
   const shutdown = (signal: string) => {
     console.log(`${signal} received, shutting down…`);
