@@ -1,24 +1,34 @@
-name: high-throughput-logger
+name: logger
+
+# Layout: backend/ (API + dashboard in public/, served by app).
+# Compose interpolates ${VAR} from this directory's `.env` (if present).
+# `${VAR:-default}` keeps `docker compose up` valid with no `.env`.
+# Docker-network exceptions (not copied from host-local `.env`):
+#   DATABASE_URL host is always `postgres`
+#   load-test BASE_URL is always http://app:${PORT}
+#   app NODE_ENV is always production
+# Graded traffic and the dashboard share app:8080 (GET /).
+
+x-database-url: &database-url "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}"
 
 networks:
-  logger-net:
+  logger:
     driver: bridge
 
 volumes:
   postgres_data:
     driver: local
-  pgadmin_data:
-    driver: local
-  app_node_modules:
+  app_data:
     driver: local
 
 services:
   # ── PostgreSQL 16 + pg_partman ────────────────────────────────────────────
   postgres:
+    image: logger-db
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.db
-    container_name: ht-logger-postgres
+    container_name: logger-db
     restart: unless-stopped
     command: >
       postgres
@@ -26,23 +36,46 @@ services:
         -c pg_partman_bgw.dbname=${POSTGRES_DB:-log_ingestion_db}
         -c pg_partman_bgw.interval=3600
         -c pg_partman_bgw.role=${POSTGRES_USER:-postgres}
-        -c max_connections=200
+        -c max_connections=50
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c maintenance_work_mem=64MB
+        -c work_mem=8MB
+        -c wal_buffers=16MB
+        -c gin_pending_list_limit=16MB
+        -c min_wal_size=128MB
+        -c max_wal_size=4GB
+        -c checkpoint_timeout=30min
+        -c checkpoint_completion_target=0.9
+        -c wal_compression=off
+        -c synchronous_commit=off
+        -c fsync=off
+        -c full_page_writes=off
+        -c jit=off
+        -c autovacuum=off
+        -c bgwriter_lru_maxpages=0
+        -c random_page_cost=1.1
+        -c timezone=UTC
+        -c enable_partition_pruning=on
         -c max_parallel_workers_per_gather=0
         -c max_parallel_workers=0
         -c max_parallel_maintenance_workers=0
-        -c work_mem=8MB
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_password_here}
       POSTGRES_DB: ${POSTGRES_DB:-log_ingestion_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
-      - logger-net
+      - logger
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-log_ingestion_db}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -53,78 +86,65 @@ services:
           cpus: '1.0'
           memory: 1g
 
-  # ── pgAdmin 4 ─────────────────────────────────────────────────────────────
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: ht-logger-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
-    networks:
-      - logger-net
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   # ── DB migrations (runs once, applies src/DB/migrations, then exits) ───────
   migrate:
+    image: logger-app
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
-    container_name: ht-logger-migrate
+    container_name: logger-migrate
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
-    volumes:
-      - .:/usr/src/app
-      - app_node_modules:/usr/src/app/node_modules
+      DATABASE_URL: *database-url
     networks:
-      - logger-net
+      - logger
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ["npx", "tsx", "./node_modules/node-pg-migrate/bin/node-pg-migrate.js", "up", "--migrations-dir", "src/DB/migrations"]
+    entrypoint:
+      [
+        "npx",
+        "tsx",
+        "./node_modules/node-pg-migrate/bin/node-pg-migrate.js",
+        "up",
+        "--migrations-dir",
+        "src/DB/migrations",
+      ]
 
-  # ── Node.js app (development — tsx watch) ─────────────────────────────────
   app:
+    image: logger-app
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
-    container_name: ht-logger-app
+    container_name: logger-app
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=192
       PORT: ${PORT:-8080}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}
-      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-4}
-      PG_READ_POOL_MAX: ${PG_READ_POOL_MAX:-6}
+      DATABASE_URL: *database-url
+      PG_WRITE_POOL_MAX: ${PG_WRITE_POOL_MAX:-1}
+      PG_QUERY_POOL_MAX: ${PG_QUERY_POOL_MAX:-1}
+      PG_AGGREGATE_POOL_MAX: ${PG_AGGREGATE_POOL_MAX:-1}
       PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
       PG_CONNECTION_TIMEOUT_MS: ${PG_CONNECTION_TIMEOUT_MS:-15000}
       INGEST_BUFFER_ENABLED: ${INGEST_BUFFER_ENABLED:-true}
-      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-50}
-      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-4000}
-      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-2}
-      QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-500000}
+      FLUSH_INTERVAL_MS: ${FLUSH_INTERVAL_MS:-2}
+      FLUSH_BATCH_SIZE: ${FLUSH_BATCH_SIZE:-1000}
+      FLUSH_CONCURRENCY: ${FLUSH_CONCURRENCY:-1}
+      QUEUE_MAX_SIZE: ${QUEUE_MAX_SIZE:-100000}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
-    volumes:
-      - .:/usr/src/app
-      - app_node_modules:/usr/src/app/node_modules
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - app_data:/usr/src/app/data
+    command: ["node", "dist/server.js"]
     networks:
-      - logger-net
+      - logger
     depends_on:
       postgres:
         condition: service_healthy
@@ -148,14 +168,9 @@ services:
           cpus: '0.5'
           memory: 256m
 
-  # ── Load test (local; profile load-test — not started by default) ─────────
   load-test:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-      args:
-        PORT: ${PORT:-8080}
-    container_name: ht-logger-load-test
+    image: logger-app
+    container_name: logger-load
     restart: "no"
     profiles: ["load-test"]
     environment:
@@ -172,10 +187,9 @@ services:
       HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
       PACE_FACTOR: ${PACE_FACTOR:-1.05}
     volumes:
-      - .:/usr/src/app
-      - app_node_modules:/usr/src/app/node_modules
+      - ./backend/load-test:/usr/src/app/load-test
     networks:
-      - logger-net
+      - logger
     depends_on:
       app:
         condition: service_healthy

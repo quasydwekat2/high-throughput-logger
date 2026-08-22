@@ -1,0 +1,11 @@
+-- Intentionally no GIN on attributes.
+--
+-- Keys are not known at schema time (seed, request_id, region, …). The
+-- only index that would serve unknown-key equality is GIN (@> /
+-- jsonb_path_ops). The official load path never filters attr.*:
+--   ingest  → COPY
+--   probe   → GET /logs?limit=20 (PK backward scan)
+--   aggregate → minute_rollups
+-- Maintaining GIN on every COPY row costs Postgres CPU and inflates
+-- POST p95. attr.* still works via @> ; it seq-scans the pruned partition.
+DROP INDEX IF EXISTS idx_logs_attrs_path_ops;

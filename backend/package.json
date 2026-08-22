@@ -1,0 +1,44 @@
+{
+  "name": "high-throughput-logger",
+  "version": "1.0.0",
+  "description": "Log ingestion and query API; serves dashboard static files from public/",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/server.js",
+    "test:contract": "tsx scripts/contract-smoke.ts",
+    "docker:up": "docker compose -f ../docker-compose.yml up --build -d postgres migrate app",
+    "docker:down": "docker compose -f ../docker-compose.yml down",
+    "test-load:docker": "docker compose -f ../docker-compose.yml --profile load-test run --rm load-test",
+    "test-load:docker:smoke": "docker compose -f ../docker-compose.yml --profile load-test run --rm load-test --smoke",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "migrate:create": "dotenv -e ../.env -- npx tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js create --migrations-dir src/DB/migrations --migration-filename-format index",
+    "migrate:up": "dotenv -e ../.env -- npx tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir src/DB/migrations",
+    "migrate:down": "dotenv -e ../.env -- npx tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js down --migrations-dir src/DB/migrations"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.20.3",
+    "@types/pg-copy-streams": "^1.2.5",
+    "dotenv-cli": "^11.0.0",
+    "node-pg-migrate": "^9.0.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.5",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.22.0",
+    "pg-copy-streams": "^7.0.0"
+  }
+}

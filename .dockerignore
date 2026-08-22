@@ -1,36 +1,10 @@
-# Node.js dependencies & logs
-node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# Environment files (تجنب تسريب الأسرار داخل الصورة)
-.env
-.env.local
-.env.*.local
-
-# Git & Repository metadata
 .git
-.gitignore
 .github
+**/.DS_Store
+**/node_modules
+**/.env
+**/.env.*
+backend/dist
+benchmark-report.json
 README.md
-
-# OS & Editor files
-.DS_Store
-.idea
-.vscode
-*.swp
-*.swo
-
-# Docker specific
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# Tests & Documentation
-coverage
-__tests__
-*.test.js
-*.spec.js
-docs
+check.md
