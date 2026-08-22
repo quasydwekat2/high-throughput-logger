@@ -1,11 +1,13 @@
 name: logger
 
+# Layout: backend/ (API + dashboard in public/, served by app).
 # Compose interpolates ${VAR} from this directory's `.env` (if present).
 # `${VAR:-default}` keeps `docker compose up` valid with no `.env`.
 # Docker-network exceptions (not copied from host-local `.env`):
 #   DATABASE_URL host is always `postgres`
 #   load-test BASE_URL is always http://app:${PORT}
 #   app NODE_ENV is always production
+# Graded traffic and the dashboard share app:8080 (GET /).
 
 x-database-url: &database-url "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/${POSTGRES_DB:-log_ingestion_db}"
 
@@ -24,7 +26,7 @@ services:
   postgres:
     image: logger-db
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.db
     container_name: logger-db
     restart: unless-stopped
@@ -88,7 +90,7 @@ services:
   migrate:
     image: logger-app
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
@@ -114,7 +116,7 @@ services:
   app:
     image: logger-app
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
       args:
         PORT: ${PORT:-8080}
@@ -185,7 +187,7 @@ services:
       HEALTH_TIMEOUT_MS: ${HEALTH_TIMEOUT_MS:-120000}
       PACE_FACTOR: ${PACE_FACTOR:-1.05}
     volumes:
-      - ./load-test:/usr/src/app/load-test
+      - ./backend/load-test:/usr/src/app/load-test
     networks:
       - logger
     depends_on:

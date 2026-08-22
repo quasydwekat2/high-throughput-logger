@@ -2,7 +2,13 @@
 
 High-throughput structured log API: ingest batches, filter and page results, aggregate into time buckets. PostgreSQL is the source of truth for reads and writes.
 
-`docker compose up` with **no extra flags** starts the graded core service: unauthenticated `GET /health`, `POST /logs`, `GET /logs`, and `GET /logs/aggregate` on **localhost:8080**. A `.env` file is optional: Compose interpolates `${VAR}` from `.env` when present, and uses the same defaults as `.env.example` when it is not.
+```
+backend/   TypeScript API + dashboard static files in public/
+```
+
+`docker compose up` with **no extra flags** starts the graded core service: unauthenticated `GET /health`, `POST /logs`, `GET /logs`, and `GET /logs/aggregate` on **localhost:8080**. The dashboard is the same origin: **http://localhost:8080/**. A `.env` file is optional: Compose interpolates `${VAR}` from `.env` when present, and uses the same defaults as `.env.example` when it is not.
+
+The load generator talks only to `:8080`. The UI is additive and does not change required paths, headers, or response shapes.
 
 ## Setup and usage
 
@@ -18,24 +24,27 @@ Wait until the app is healthy, then:
 curl -s http://localhost:8080/health
 ```
 
+Dashboard: [http://localhost:8080/](http://localhost:8080/) — the API serves `backend/public/` from the same container. Required endpoints are unchanged.
+
 `GET /health` returns **200** only after the database is up, migrations have been applied, and the process is ready to accept logs.
 
-| Service    | Role                                      | Limits          |
-|------------|-------------------------------------------|-----------------|
-| `postgres` | PostgreSQL 16 + pg_partman                | 1 CPU / 1 GB    |
-| `migrate`  | Applies `src/DB/migrations`, then exits   | —               |
-| `app`      | HTTP API on port 8080                     | 0.5 CPU / 256 MB |
+| Service    | Role                                         | Limits           |
+|------------|----------------------------------------------|------------------|
+| `postgres` | PostgreSQL 16 + pg_partman                   | 1 CPU / 1 GB     |
+| `migrate`  | Applies `backend/src/DB/migrations`, then exits | —             |
+| `app`      | HTTP API + dashboard on port 8080            | 0.5 CPU / 256 MB |
 
 The `load-test` Compose service is behind profile `load-test` and is **not** started by a plain `up`.
 
 **Contract smoke** (stack already up):
 
 ```bash
+cd backend
 npm ci
 npm run test:contract
 ```
 
-**Local app (optional):** copy `.env.example` → `.env`, run Postgres, `npm run migrate:up`, `npm run dev`. `DATABASE_URL` in `.env` is host-local (`localhost`); Compose rebuilds it with host `postgres` for `app` / `migrate`. `NODE_ENV=development` applies to `npm run dev` only; the app container stays `production`.
+**Local app (optional):** copy `.env.example` → `.env` at the repo root, run Postgres, then from `backend/`: `npm run migrate:up`, `npm run dev`. The dashboard is `GET /` from `public/`. `DATABASE_URL` in `.env` is host-local (`localhost`); Compose rebuilds it with host `postgres` for `app` / `migrate`. `NODE_ENV=development` applies to `npm run dev` only; the app container stays `production`.
 
 Tear down (keeps volumes): `docker compose down`. Reset data: `docker compose down -v`.
 
@@ -144,7 +153,7 @@ GET  /logs  → parameterized SQL on logs (PK / service+level index)
 GET  /logs/aggregate → minute_rollups when no q/attr.*; else COUNT on logs
 ```
 
-Handlers stay thin. Validation lives in `src/utils/`. SQL lives in `src/repositories/`. Three pools: write (COPY), query (`GET /logs` + health), aggregate (`GET /logs/aggregate`) so a heavy COUNT does not block ingest or list queries.
+Handlers stay thin. Validation lives in `backend/src/utils/`. SQL lives in `backend/src/repositories/`. Three pools: write (COPY), query (`GET /logs` + health), aggregate (`GET /logs/aggregate`) so a heavy COUNT does not block ingest or list queries.
 
 `POST /logs` does not return 200 until the batch is committed. Concurrent POSTs are merged into bulk `COPY` (default flush 2 ms / 1000 rows, concurrency 1 — Postgres has 1 CPU).
 
@@ -180,7 +189,7 @@ Attributes are a **single JSONB column** (`{}` if omitted). **Not indexed.**
 Expired data is **dropped as whole partitions**, not `DELETE`d row-by-row (avoids long locks and bloat on the live ingest path).
 
 - Partition **width** (`p_interval`) is `'1 day'` in migration 002 — how large each child table is.
-- Drop **window** is **`RETENTION_DAYS`** (default **30**). At startup the app writes `partman.part_config.retention` (`src/DB/config/retention.ts`). Restart after changing the env var; no new migration.
+- Drop **window** is **`RETENTION_DAYS`** (default **30**). At startup the app writes `partman.part_config.retention` (`backend/src/DB/config/retention.ts`). Restart after changing the env var; no new migration.
 - `retention_keep_table = false` so expired partitions are dropped, not detached and left on disk.
 - pg_partman BGW runs hourly (`pg_partman_bgw.interval=3600`).
 
@@ -198,13 +207,24 @@ npx --yes "github:Ahmad-Abbas-Foothill/logs-benchmark-cli#992d9c8" --compose ./d
 
 `--full` is the ~1M-row ingest + query + aggregate run. `--seed 6122026` keeps the payload reproducible. `--generator-cpus 4` is for the generator process; the app/Postgres limits stay 0.5 CPU / 256 MB and 1 CPU / 1 GB.
 
-Official `--full` numbers: **not recorded yet** — paste the CLI summary here after a run (ingest rate, dropped requests, agg p95, query stats, visibility).
+Official `--full` numbers (2026-08-20, scorer `2026-08-18.v10`, same machine as development):
+
+| Category | Score | Detail |
+|----------|-------|--------|
+| Correctness | 15.0 / 15 | 15/15 checks |
+| Performance | 47.5 / 50 | **14,999/s** · errors 0.0% · p95 **30ms** |
+| Queries | 14.6 / 15 | aggregate p95 **22ms** · consistency 4/4 |
+| Reliability | 20.0 / 20 | 4/4 scenarios |
+| **Total** | **97.1 / 100** | Docker Desktop 6 CPU / 6 GiB, machine speed 0.49x reference |
+
+Quote the engine size with the score. Performance points are indicative on this machine.
 
 ### Internal harness (tuning only)
 
 Not the grader. With the stack on localhost:8080:
 
 ```bash
+cd backend
 npx tsx load-test/run.ts
 ```
 
@@ -222,20 +242,20 @@ npx tsx load-test/run.ts
 
 ## Measured performance results
 
-**Environment:** Docker Compose as in this repo (app 0.5 CPU / 256 MB, Postgres 1 CPU / 1 GB). Internal run: `npx tsx load-test/run.ts`.
+**Environment:** Docker Compose as in this repo (app 0.5 CPU / 256 MB, Postgres 1 CPU / 1 GB). Local internal harness only (`npx tsx load-test/run.ts`, 2026-08-22) — not the official company CLI.
 
 | Metric | Result |
 |--------|--------|
-| Sustained ingest | **15,668 /s** (overall 15,662 /s) |
+| Sustained ingest | **15,531 /s** (target 15,000 /s) |
 | Accepted / rejected | 1,000,000 / 0 |
 | Failed batches / crashes | 0 / 0 |
-| Ingest latency | p50 4.4 ms · p95 140.4 ms · p99 254.1 ms · max 450.1 ms |
-| Aggregate p95 | **161.9 ms** (p50 4.3 ms, p99 344.9 ms, n=78) — under 1 s |
-| Query during ingest | 31 ok / 0 fail |
-| Time to query new data | **3.2 s** (under 20 s) |
-| Duration | 63.8 s · 2000 ingest batches |
+| Ingest latency | p50 19.5 ms · p95 109.3 ms · p99 184.9 ms · max 319.6 ms (n=2,000) |
+| Aggregate p95 | **495.3 ms** (p50 423.2 ms, p99 773.8 ms, max 773.8 ms, n=64) — under 1 s |
+| Query during ingest | 32 ok / 0 fail · p50 5.0 ms · p95 59.6 ms · p99 61.2 ms |
+| Time to query new data | **2.5 s** (2501 ms, under 20 s) |
+| Duration | 64.4 s · 2000 ingest batches |
 
-HTTP status mix: `ingest:200` × 2000, `agg:200` × 63, `query:200` × 31.
+HTTP status mix: `ingest:200` × 2,000, `agg:200` × 64, `query:200` × 32. Spec checks: **7/7 passed**.
 
 **Bottlenecks:** Postgres CPU and a single COPY stream (write pool max 1). Extra btree/GIN indexes, a DEFAULT partition that could not be pruned, and `CACHE 1` on `logs_id_seq` dominated write time in earlier revisions.
 
@@ -249,13 +269,14 @@ HTTP status mix: `ingest:200` × 2000, `agg:200` × 63, `query:200` × 31.
 - `POST /logs` JSON body is capped at **2 MB**.
 - Timestamps without a timezone offset are rejected (load traffic uses `Z` / offset form).
 - Changing partition **width** (`p_interval`) only applies on a **new** database (`create_parent` is skipped if partman is already configured). Change `RETENTION_DAYS` with an app restart.
-- Official CLI `--full` results are not in this file until that command is run.
 
 ## Optional features
 
-**None.** There is no authentication, API keys, multi-tenancy, or rate limiting.
+**Dashboard (served by the API, on by default).** Static files in `backend/public/` are served as `GET /` from the **same** `app` container (0.5 CPU / 256 MB). No extra frontend folder or nginx container. It only calls the four required endpoints on the same origin. It does not add auth, required headers, or response fields.
 
-`docker compose up` with no configuration is the unauthenticated core service. `AUTH_ENABLED` is not read.
+There is no authentication, API keys, multi-tenancy, or rate limiting. `AUTH_ENABLED` is not read.
+
+`docker compose up` with no configuration is the unauthenticated core service on **:8080**, including this dashboard at `/`. The load generator never needs the UI.
 
 Tune via `.env` (Compose interpolates the same names). Defaults below apply if `.env` is missing.
 
@@ -277,5 +298,5 @@ These tune the same core API. They do not add required headers or change respons
 
 GitHub Actions (`.github/workflows/ci.yml`):
 
-1. `npm ci` → `tsc --noEmit` → `tsc`
-2. `docker compose up --build --wait` → `npm run test:contract` (`AUTH_ENABLED=false`, four endpoints, Bearer ignored)
+1. `backend`: `npm ci` → `tsc --noEmit` → `tsc`
+2. `docker compose up --build --wait postgres migrate app` → `backend` `npm run test:contract` (`AUTH_ENABLED=false`, four endpoints, Bearer ignored)

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master,feature/load-test/per-83.97]
+    branches: [main, master]
   pull_request:
 
 concurrency:
@@ -21,10 +21,14 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: backend/package-lock.json
 
       - run: npm ci
+        working-directory: backend
       - run: npm run typecheck
+        working-directory: backend
       - run: npm run build
+        working-directory: backend
 
   contract-smoke:
     name: Contract smoke (no auth)
@@ -37,8 +41,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: backend/package-lock.json
 
       - run: npm ci
+        working-directory: backend
 
       - name: Start stack (postgres + migrate + app)
         run: docker compose up --build --wait postgres migrate app
@@ -47,6 +53,7 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:8080
         run: npm run test:contract
+        working-directory: backend
 
       - name: Compose logs (on failure)
         if: failure()
